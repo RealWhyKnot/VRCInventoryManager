@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/VRCInventoryManager.Core/VRCInventoryManager.Core.csproj" />
+    <Project Path="src/VRCInventoryManager/VRCInventoryManager.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/VRCInventoryManager.Tests/VRCInventoryManager.Tests.csproj" />
+  </Folder>
+</Solution>

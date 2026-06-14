@@ -1,0 +1,82 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: changelog-append
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: build and publish
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Validate workflow scripts
+        shell: pwsh
+        run: |
+          ./.github/scripts/Test-WorkflowSyntax.ps1
+          ./.github/scripts/Test-UpdateChangelog.ps1
+
+      - name: Install NSIS
+        shell: pwsh
+        run: |
+          if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
+            Write-Host "NSIS already installed."
+          } else {
+            choco install nsis -y --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "NSIS install failed with exit $LASTEXITCODE" }
+          }
+
+      - name: Promote changelog
+        shell: pwsh
+        run: |
+          ./.github/scripts/Update-Changelog.ps1 -Mode Promote -Version '${{ github.ref_name }}'
+
+      - name: Build release assets
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}' -replace '^v', ''
+          ./build.ps1 -Version $version -Release -RequireInstaller
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          ./.github/scripts/Update-Changelog.ps1 -Mode Notes -ForVersion -Version '${{ github.ref_name }}' | Set-Content -Path release/notes.md -Encoding utf8
+          if (-not (Test-Path release/notes.md) -or (Get-Item release/notes.md).Length -eq 0) {
+            Set-Content -Path release/notes.md -Value 'Release build.' -Encoding utf8
+          }
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $assets = Get-ChildItem release -File | Where-Object { $_.Name -like '*.zip' -or $_.Name -like '*Setup.exe' }
+          if ($assets.Count -lt 2) { throw "Expected zip and installer assets." }
+          $existing = gh release view $tag --json id 2>$null
+          if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($existing)) {
+            gh release delete $tag --yes
+            if ($LASTEXITCODE -ne 0) { throw "Could not delete existing release $tag" }
+          }
+          $assetPaths = @($assets | ForEach-Object { $_.FullName })
+          gh release create $tag --title $tag --notes-file release/notes.md @assetPaths
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }

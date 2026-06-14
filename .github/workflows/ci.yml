@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.gitattributes'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.gitattributes'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and tests
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Validate workflow scripts
+        shell: pwsh
+        run: |
+          ./.github/scripts/Test-WorkflowSyntax.ps1
+          ./.github/scripts/Test-UpdateChangelog.ps1
+
+      - name: Restore
+        run: dotnet restore VRCInventoryManager.slnx
+
+      - name: Build
+        run: dotnet build VRCInventoryManager.slnx --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet run --project tests/VRCInventoryManager.Tests/VRCInventoryManager.Tests.csproj --configuration Release --no-build
+
+      - name: Publish app
+        run: dotnet publish src/VRCInventoryManager/VRCInventoryManager.csproj --configuration Release --runtime win-x64 --self-contained true --output stage/app -p:PublishSingleFile=false -p:PublishReadyToRun=false
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: VRCInventoryManager-${{ github.sha }}
+          path: stage/app
+          if-no-files-found: error
+          retention-days: 14
