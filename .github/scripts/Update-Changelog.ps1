@@ -11,7 +11,8 @@ param(
     [string] $Range,
     [string] $Version,
     [switch] $ForVersion,
-    [string] $RepoRoot
+    [string] $RepoRoot,
+    [datetime] $NowUtc = ([datetime]::UtcNow)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +35,25 @@ function Read-TextUtf8 {
 function Write-TextUtf8 {
     param([string] $Path, [string] $Content)
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Get-CentralTimeZone {
+    foreach ($id in @('Central Standard Time', 'America/Chicago')) {
+        try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($id) }
+        catch { }
+    }
+    throw 'Could not resolve the America/Chicago release time zone.'
+}
+
+function Get-ReleaseDateStamp {
+    param([datetime] $NowUtc, [string] $Format)
+
+    $utc = $NowUtc
+    if ($utc.Kind -ne [System.DateTimeKind]::Utc) {
+        $utc = $utc.ToUniversalTime()
+    }
+    $central = [System.TimeZoneInfo]::ConvertTimeFromUtc($utc, (Get-CentralTimeZone))
+    return $central.ToString($Format, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
 function Strip-BuildStamp {
@@ -138,7 +158,7 @@ if ($Mode -eq 'Promote') {
     if ([string]::IsNullOrWhiteSpace($Version)) { throw '-Version is required for Promote mode.' }
     $content = Read-TextUtf8 -Path $ChangelogPath
     $body = Get-UnreleasedBody -Content $content
-    $date = Get-Date -Format 'yyyy-MM-dd'
+    $date = Get-ReleaseDateStamp -NowUtc $NowUtc -Format 'yyyy-MM-dd'
     $replacement = "## Unreleased`n`n---`n`n## $Version - $date`n`n"
     if (-not [string]::IsNullOrWhiteSpace($body)) {
         $replacement += "$body`n`n"
