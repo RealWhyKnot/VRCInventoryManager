@@ -19,3 +19,7 @@ Each run writes `VRCInventoryManager.debug.log` beside `VRCInventoryManager.exe`
 ```
 
 The release build creates a compressed, self-contained, single-exe win-x64 zip under `release\`. If NSIS is installed, it also builds a per-user installer.
+
+## License
+
+GNU General Public License v3.0; see [LICENSE](LICENSE).

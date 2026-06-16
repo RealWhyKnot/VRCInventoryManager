@@ -112,6 +112,12 @@ if ($Release) {
         throw "Release publish should produce exactly one executable file."
     }
 
+    $licensePath = Join-Path $PSScriptRoot "LICENSE"
+    if (-not (Test-Path -LiteralPath $licensePath)) {
+        throw "LICENSE is required for release packaging."
+    }
+    Copy-Item -LiteralPath $licensePath -Destination $appDir -Force
+
     $zipPath = Join-Path $releaseDir "VRCInventoryManager-v$Version-win-x64.zip"
     if (Test-Path -LiteralPath $zipPath) {
         Remove-Item -LiteralPath $zipPath -Force
