@@ -14,6 +14,7 @@ public partial class MainWindow : Window
     private readonly VrcxCookieProvider cookieProvider = new();
     private readonly ImageThumbnailLoader thumbnailLoader = new();
     private readonly DispatcherTimer searchTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
+    private KnownFolderPaths localFolders = KnownFolders.Resolve();
 
     private List<LocalAsset> allAssets = [];
     private List<LocalAssetViewModel> filteredAssets = [];
@@ -65,7 +66,7 @@ public partial class MainWindow : Window
         {
             settings = settingsStore.Load();
             ConfigureFolders();
-            SelectInitialFolder(settings.LocalRoot);
+            SelectInitialFolder(GetInitialLocalRoot());
             loaded = true;
             ClearPreview();
             UpdateButtons();

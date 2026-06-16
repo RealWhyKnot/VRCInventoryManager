@@ -9,12 +9,11 @@ public sealed class VrcxCookieProvider
     private readonly string databasePath;
     private readonly string versionPath;
 
-    public VrcxCookieProvider(
-        string databasePath = KnownFolders.VrcxDatabasePath,
-        string versionPath = KnownFolders.VrcxVersionPath)
+    public VrcxCookieProvider(string? databasePath = null, string? versionPath = null)
     {
-        this.databasePath = databasePath;
-        this.versionPath = versionPath;
+        KnownFolderPaths folders = KnownFolders.Resolve();
+        this.databasePath = string.IsNullOrWhiteSpace(databasePath) ? folders.VrcxDatabasePath : databasePath;
+        this.versionPath = string.IsNullOrWhiteSpace(versionPath) ? folders.VrcxVersionPath : versionPath;
     }
 
     public VrcxAuthSession LoadDefaultSession()

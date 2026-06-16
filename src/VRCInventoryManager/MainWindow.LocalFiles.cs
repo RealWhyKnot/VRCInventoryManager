@@ -10,18 +10,12 @@ namespace VRCInventoryManager;
 
 public partial class MainWindow
 {
-    private string CurrentFolder => FolderCombo.SelectedItem is FolderChoice choice ? choice.Path : settings.LocalRoot;
+    private string CurrentFolder => FolderCombo.SelectedItem is FolderChoice choice ? choice.Path : localFolders.EmojiFolder;
 
     private void ConfigureFolders()
     {
-        FolderCombo.ItemsSource = new[]
-        {
-            new FolderChoice("Photos", KnownFolders.DefaultPhotosFolder),
-            new FolderChoice("Emoji", KnownFolders.DefaultEmojiFolder),
-            new FolderChoice("Stickers", KnownFolders.DefaultStickersFolder),
-            new FolderChoice("Prints", KnownFolders.DefaultPrintsFolder),
-            new FolderChoice("Custom", settings.LocalRoot)
-        };
+        localFolders = KnownFolders.Resolve();
+        FolderCombo.ItemsSource = BuildFolderChoices(settings.LocalRoot);
         FolderCombo.DisplayMemberPath = nameof(FolderChoice.Name);
     }
 
@@ -36,7 +30,9 @@ public partial class MainWindow
             }
         }
 
-        FolderCombo.SelectedIndex = 0;
+        FolderCombo.SelectedItem = FolderCombo.Items
+            .OfType<FolderChoice>()
+            .FirstOrDefault(choice => string.Equals(choice.Name, "Emoji", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task RefreshLocalAsync()
@@ -112,22 +108,15 @@ public partial class MainWindow
         OpenFolderDialog dialog = new()
         {
             Title = "Choose a VRChat image folder",
-            InitialDirectory = Directory.Exists(CurrentFolder) ? CurrentFolder : KnownFolders.DefaultEmojiFolder
+            InitialDirectory = Directory.Exists(CurrentFolder) ? CurrentFolder : localFolders.EmojiFolder
         };
 
         if (dialog.ShowDialog(this) == true)
         {
-            FolderChoice custom = new("Custom", dialog.FolderName);
-            FolderCombo.ItemsSource = new[]
-            {
-                new FolderChoice("Photos", KnownFolders.DefaultPhotosFolder),
-                new FolderChoice("Emoji", KnownFolders.DefaultEmojiFolder),
-                new FolderChoice("Stickers", KnownFolders.DefaultStickersFolder),
-                new FolderChoice("Prints", KnownFolders.DefaultPrintsFolder),
-                custom
-            };
+            IReadOnlyList<FolderChoice> choices = BuildFolderChoices(dialog.FolderName);
+            FolderCombo.ItemsSource = choices;
             FolderCombo.DisplayMemberPath = nameof(FolderChoice.Name);
-            FolderCombo.SelectedItem = custom;
+            FolderCombo.SelectedItem = choices.First(choice => string.Equals(choice.Name, "Custom", StringComparison.OrdinalIgnoreCase));
             await RefreshLocalAsync();
         }
     }
@@ -219,10 +208,26 @@ public partial class MainWindow
         }
     }
 
-    private static bool IsDefaultPhotosFolder(string folder) =>
+    private string GetInitialLocalRoot() =>
+        string.IsNullOrWhiteSpace(settings.LocalRoot) ? localFolders.EmojiFolder : settings.LocalRoot;
+
+    private IReadOnlyList<FolderChoice> BuildFolderChoices(string? customPath)
+    {
+        string customRoot = string.IsNullOrWhiteSpace(customPath) ? localFolders.EmojiFolder : customPath;
+        return
+        [
+            new FolderChoice("Photos", localFolders.PhotosFolder),
+            new FolderChoice("Emoji", localFolders.EmojiFolder),
+            new FolderChoice("Stickers", localFolders.StickersFolder),
+            new FolderChoice("Prints", localFolders.PrintsFolder),
+            new FolderChoice("Custom", customRoot)
+        ];
+    }
+
+    private bool IsDefaultPhotosFolder(string folder) =>
         string.Equals(
             Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            Path.GetFullPath(KnownFolders.DefaultPhotosFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(localFolders.PhotosFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
 
     private sealed record FolderChoice(string Name, string Path)
