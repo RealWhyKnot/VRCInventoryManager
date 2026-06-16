@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- **release:** Keep beta planner probe optional (1f3a833)
+
 ### Added
 - **ui:** Animate inventory previews (ca23ef9)
 
