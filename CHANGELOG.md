@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## v2026.6.16.1 - 2026-06-16
+
 ### Fixed
 - **release:** Report tagged commit in notes (5f43db0)
 
