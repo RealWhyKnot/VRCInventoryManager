@@ -19,4 +19,19 @@ internal static class TestAssert
     }
 
     public static void False(bool condition, string label) => True(!condition, label);
+
+    public static void Throws<TException>(Action action, string label)
+        where TException : Exception
+    {
+        try
+        {
+            action();
+        }
+        catch (TException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"{label}: expected {typeof(TException).Name}.");
+    }
 }

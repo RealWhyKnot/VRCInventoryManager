@@ -11,13 +11,14 @@ public partial class MainWindow
     private void UpdateButtons()
     {
         bool hasAsset = LocalAssetList.SelectedItem is LocalAssetViewModel;
-        bool hasGif = LocalAssetList.SelectedItem is LocalAssetViewModel selected && selected.Asset.IsGif;
+        bool hasAnimatedAsset = LocalAssetList.SelectedItem is LocalAssetViewModel selected &&
+            (selected.Asset.IsGif || selected.Asset.HasSpriteSheetAnimation);
         bool connected = apiClient is not null;
         bool stickerHasCapacity = stickerCount < 0 || stickerCount < RemoteInventorySnapshot.StickerLimit;
         bool emojiHasCapacity = emojiCount < 0 || emojiCount < RemoteInventorySnapshot.EmojiLimit;
         UploadStickerButton.IsEnabled = hasAsset && connected && stickerHasCapacity;
         UploadEmojiButton.IsEnabled = hasAsset && connected && emojiHasCapacity;
-        UploadAnimatedEmojiButton.IsEnabled = hasGif && connected && emojiHasCapacity;
+        UploadAnimatedEmojiButton.IsEnabled = hasAnimatedAsset && connected && emojiHasCapacity;
         DeleteRemoteButton.IsEnabled = RemoteFileList.SelectedItem is RemoteInventoryViewModel && connected;
         RemoteEmptyText.Visibility = remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         LocalEmptyText.Visibility = filteredAssets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;

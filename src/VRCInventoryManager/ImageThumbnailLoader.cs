@@ -10,8 +10,10 @@ internal sealed class ImageThumbnailLoader : IDisposable
     private const int ThumbnailWidth = 120;
     private const int MaxLocalCacheEntries = 512;
     private const int MaxRemoteCacheEntries = 128;
-    private readonly Dictionary<string, ThumbnailCacheEntry> localCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, ThumbnailCacheEntry> remoteCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<BitmapSource?>> localCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<AnimatedImageFrames?>> localAnimationCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<BitmapSource?>> remoteCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<AnimatedImageFrames?>> remoteAnimationCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly object localCacheGate = new();
     private readonly object remoteCacheGate = new();
     private readonly SemaphoreSlim localGate = new(2);
@@ -25,10 +27,38 @@ internal sealed class ImageThumbnailLoader : IDisposable
     public Task<BitmapSource?> LoadLocalAsync(LocalAsset asset) =>
         GetOrAddCache(localCache, localCacheGate, asset.Path, () => LoadLocalCoreAsync(asset), MaxLocalCacheEntries);
 
+    public Task<AnimatedImageFrames?> LoadLocalAnimationAsync(LocalAsset asset) =>
+        GetOrAddCache(localAnimationCache, localCacheGate, asset.Path, () => LoadLocalAnimationCoreAsync(asset), MaxLocalCacheEntries);
+
     public Task<BitmapSource?> LoadRemoteAsync(string url) =>
         GetOrAddCache(remoteCache, remoteCacheGate, url, () => LoadRemoteCoreAsync(url), MaxRemoteCacheEntries);
 
-    public void ClearLocal() => ClearCache(localCache, localCacheGate);
+    public Task<AnimatedImageFrames?> LoadRemoteAnimationAsync(RemoteInventoryItem item) =>
+        GetOrAddCache(
+            remoteAnimationCache,
+            remoteCacheGate,
+            $"{item.PreviewUrl}|{item.Frames}|{item.FramesOverTime}",
+            () => LoadRemoteAnimationCoreAsync(item),
+            MaxRemoteCacheEntries);
+
+    public async Task<byte[]> DownloadRemoteBytesAsync(string url, CancellationToken cancellationToken)
+    {
+        await remoteGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await DownloadRemoteBytesCoreAsync(url, cancellationToken);
+        }
+        finally
+        {
+            remoteGate.Release();
+        }
+    }
+
+    public void ClearLocal()
+    {
+        ClearCache(localCache, localCacheGate);
+        ClearCache(localAnimationCache, localCacheGate);
+    }
 
     public void ConfigureRemoteAuth(VrcxAuthCookies cookies, string userAgent)
     {
@@ -39,6 +69,7 @@ internal sealed class ImageThumbnailLoader : IDisposable
         }
 
         ClearCache(remoteCache, remoteCacheGate);
+        ClearCache(remoteAnimationCache, remoteCacheGate);
     }
 
     public void ClearRemoteAuth()
@@ -49,6 +80,7 @@ internal sealed class ImageThumbnailLoader : IDisposable
         }
 
         ClearCache(remoteCache, remoteCacheGate);
+        ClearCache(remoteAnimationCache, remoteCacheGate);
     }
 
     public void Dispose()
@@ -58,30 +90,30 @@ internal sealed class ImageThumbnailLoader : IDisposable
         httpClient.Dispose();
     }
 
-    private Task<BitmapSource?> GetOrAddCache(
-        Dictionary<string, ThumbnailCacheEntry> cache,
+    private Task<T> GetOrAddCache<T>(
+        Dictionary<string, ThumbnailCacheEntry<T>> cache,
         object gate,
         string key,
-        Func<Task<BitmapSource?>> factory,
+        Func<Task<T>> factory,
         int maxEntries)
     {
         lock (gate)
         {
             long stamp = Interlocked.Increment(ref cacheStamp);
-            if (cache.TryGetValue(key, out ThumbnailCacheEntry? existing))
+            if (cache.TryGetValue(key, out ThumbnailCacheEntry<T>? existing))
             {
                 existing.LastAccess = stamp;
                 return existing.Task;
             }
 
-            Task<BitmapSource?> task = factory();
-            cache[key] = new ThumbnailCacheEntry(task, stamp);
+            Task<T> task = factory();
+            cache[key] = new ThumbnailCacheEntry<T>(task, stamp);
             TrimCache(cache, maxEntries);
             return task;
         }
     }
 
-    private static void ClearCache(Dictionary<string, ThumbnailCacheEntry> cache, object gate)
+    private static void ClearCache<T>(Dictionary<string, ThumbnailCacheEntry<T>> cache, object gate)
     {
         lock (gate)
         {
@@ -89,7 +121,7 @@ internal sealed class ImageThumbnailLoader : IDisposable
         }
     }
 
-    private static void TrimCache(Dictionary<string, ThumbnailCacheEntry> cache, int maxEntries)
+    private static void TrimCache<T>(Dictionary<string, ThumbnailCacheEntry<T>> cache, int maxEntries)
     {
         int removeCount = cache.Count - maxEntries;
         if (removeCount <= 0)
@@ -128,30 +160,37 @@ internal sealed class ImageThumbnailLoader : IDisposable
         }
     }
 
+    private async Task<AnimatedImageFrames?> LoadLocalAnimationCoreAsync(LocalAsset asset)
+    {
+        if (!asset.IsGif && !asset.HasSpriteSheetAnimation)
+        {
+            return null;
+        }
+
+        await localGate.WaitAsync();
+        try
+        {
+            return await Task.Run(() => asset.IsGif
+                ? LoadGifAnimation(asset.Path, ThumbnailWidth)
+                : LoadSpriteSheetAnimation(asset.Path, asset.Frames!.Value, asset.FramesOverTime!.Value, ThumbnailWidth));
+        }
+        catch (Exception ex)
+        {
+            App.Log.Warning($"Local animated thumbnail failed for '{asset.Path}': {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            localGate.Release();
+        }
+    }
+
     private async Task<BitmapSource?> LoadRemoteCoreAsync(string url)
     {
         await remoteGate.WaitAsync();
         try
         {
-            using HttpRequestMessage request = new(HttpMethod.Get, url);
-            request.Headers.TryAddWithoutValidation("User-Agent", remoteUserAgent);
-            if (ShouldSendVrchatCookies(url))
-            {
-                VrcxAuthCookies? cookies;
-                lock (authGate)
-                {
-                    cookies = remoteCookies;
-                }
-
-                if (cookies is not null)
-                {
-                    request.Headers.TryAddWithoutValidation("Cookie", cookies.ToCookieHeader());
-                }
-            }
-
-            using HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
-            byte[] bytes = await response.Content.ReadAsByteArrayAsync();
+            byte[] bytes = await DownloadRemoteBytesCoreAsync(url, CancellationToken.None);
             return await Task.Run(() => LoadBitmap(bytes, ThumbnailWidth));
         }
         catch (Exception ex)
@@ -163,6 +202,56 @@ internal sealed class ImageThumbnailLoader : IDisposable
         {
             remoteGate.Release();
         }
+    }
+
+    private async Task<AnimatedImageFrames?> LoadRemoteAnimationCoreAsync(RemoteInventoryItem item)
+    {
+        if (!SpriteSheetFrameExtractor.CanAnimate(item.Frames, item.FramesOverTime) ||
+            string.IsNullOrWhiteSpace(item.PreviewUrl))
+        {
+            return null;
+        }
+
+        await remoteGate.WaitAsync();
+        try
+        {
+            byte[] bytes = await DownloadRemoteBytesCoreAsync(item.PreviewUrl, CancellationToken.None);
+            int frames = item.Frames!.Value;
+            int framesOverTime = item.FramesOverTime!.Value;
+            return await Task.Run(() => LoadSpriteSheetAnimation(bytes, frames, framesOverTime, ThumbnailWidth));
+        }
+        catch (Exception ex)
+        {
+            App.Log.Warning($"Remote animated thumbnail failed for '{item.Id}': {ex.Message}");
+            return null;
+        }
+        finally
+        {
+            remoteGate.Release();
+        }
+    }
+
+    private async Task<byte[]> DownloadRemoteBytesCoreAsync(string url, CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Get, url);
+        request.Headers.TryAddWithoutValidation("User-Agent", remoteUserAgent);
+        if (ShouldSendVrchatCookies(url))
+        {
+            VrcxAuthCookies? cookies;
+            lock (authGate)
+            {
+                cookies = remoteCookies;
+            }
+
+            if (cookies is not null)
+            {
+                request.Headers.TryAddWithoutValidation("Cookie", cookies.ToCookieHeader());
+            }
+        }
+
+        using HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
     private static BitmapSource LoadGifFrame(string path, int decodeWidth)
@@ -178,6 +267,48 @@ internal sealed class ImageThumbnailLoader : IDisposable
         }
 
         return ResizeFrame(decoder.Frames[0], decodeWidth);
+    }
+
+    private static AnimatedImageFrames LoadGifAnimation(string path, int decodeWidth)
+    {
+        GifBitmapDecoder decoder = new(
+            new Uri(path, UriKind.Absolute),
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad);
+
+        if (decoder.Frames.Count == 0)
+        {
+            throw new InvalidOperationException("GIF did not contain frames.");
+        }
+
+        int outputFrameCount = Math.Min(decoder.Frames.Count, GifSpriteSheetConverter.MaxFrames);
+        int[] frameIndexes = ChooseFrameIndexes(decoder.Frames.Count, outputFrameCount);
+        List<BitmapSource> frames = [];
+        List<TimeSpan> delays = [];
+        foreach (int frameIndex in frameIndexes)
+        {
+            BitmapFrame frame = decoder.Frames[frameIndex];
+            frames.Add(ResizeFrame(frame, decodeWidth));
+            delays.Add(GetGifFrameDelay(frame));
+        }
+
+        return new AnimatedImageFrames(frames, delays);
+    }
+
+    private static AnimatedImageFrames LoadSpriteSheetAnimation(byte[] bytes, int frames, int framesOverTime, int maxFrameWidth)
+    {
+        int grid = SpriteSheetFrameExtractor.CalculateGrid(frames);
+        int sheetDecodeWidth = Math.Clamp(maxFrameWidth * grid, 256, 2048);
+        BitmapImage spriteSheet = LoadBitmap(bytes, sheetDecodeWidth);
+        return SpriteSheetFrameExtractor.Extract(spriteSheet, frames, framesOverTime, maxFrameWidth);
+    }
+
+    private static AnimatedImageFrames LoadSpriteSheetAnimation(string path, int frames, int framesOverTime, int maxFrameWidth)
+    {
+        int grid = SpriteSheetFrameExtractor.CalculateGrid(frames);
+        int sheetDecodeWidth = Math.Clamp(maxFrameWidth * grid, 256, 2048);
+        BitmapImage spriteSheet = LoadBitmap(path, sheetDecodeWidth);
+        return SpriteSheetFrameExtractor.Extract(spriteSheet, frames, framesOverTime, maxFrameWidth);
     }
 
     private static BitmapImage LoadBitmap(string path, int decodeWidth)
@@ -223,13 +354,53 @@ internal sealed class ImageThumbnailLoader : IDisposable
         return bitmap;
     }
 
+    private static int[] ChooseFrameIndexes(int sourceFrameCount, int outputFrameCount)
+    {
+        if (sourceFrameCount == outputFrameCount)
+        {
+            return Enumerable.Range(0, sourceFrameCount).ToArray();
+        }
+
+        int[] indexes = new int[outputFrameCount];
+        for (int i = 0; i < outputFrameCount; i++)
+        {
+            indexes[i] = (int)Math.Round(i * (sourceFrameCount - 1) / (double)(outputFrameCount - 1));
+        }
+
+        return indexes;
+    }
+
+    private static TimeSpan GetGifFrameDelay(BitmapFrame frame)
+    {
+        const string delayQuery = "/grctlext/Delay";
+        try
+        {
+            if (frame.Metadata is BitmapMetadata metadata && metadata.ContainsQuery(delayQuery))
+            {
+                int hundredths = Convert.ToInt32(metadata.GetQuery(delayQuery));
+                if (hundredths > 1)
+                {
+                    return TimeSpan.FromMilliseconds(hundredths * 10);
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+
+        return TimeSpan.FromMilliseconds(100);
+    }
+
     private static bool ShouldSendVrchatCookies(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&
         uri.Host.EndsWith("vrchat.cloud", StringComparison.OrdinalIgnoreCase);
 
-    private sealed class ThumbnailCacheEntry(Task<BitmapSource?> task, long lastAccess)
+    private sealed class ThumbnailCacheEntry<T>(Task<T> task, long lastAccess)
     {
-        public Task<BitmapSource?> Task { get; } = task;
+        public Task<T> Task { get; } = task;
 
         public long LastAccess { get; set; } = lastAccess;
     }

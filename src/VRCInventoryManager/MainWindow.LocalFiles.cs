@@ -85,14 +85,29 @@ public partial class MainWindow
 
         if (filteredAssets.Count == 0)
         {
-            ClearPreview();
+            if (RemoteFileList.SelectedItem is null)
+            {
+                ClearPreview();
+            }
+
             return;
         }
 
         LocalAssetViewModel? nextSelection = previousSelection is null
             ? null
             : filteredAssets.FirstOrDefault(asset => string.Equals(asset.Asset.Path, previousSelection.Path, StringComparison.OrdinalIgnoreCase));
-        LocalAssetList.SelectedItem = nextSelection ?? filteredAssets[0];
+        if (nextSelection is not null)
+        {
+            LocalAssetList.SelectedItem = nextSelection;
+        }
+        else if (RemoteFileList.SelectedItem is not null)
+        {
+            LocalAssetList.SelectedItem = null;
+        }
+        else
+        {
+            LocalAssetList.SelectedItem = filteredAssets[0];
+        }
     }
 
     private async void FolderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)

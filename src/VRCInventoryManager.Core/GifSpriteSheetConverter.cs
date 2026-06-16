@@ -26,7 +26,7 @@ public sealed class GifSpriteSheetConverter
         int outputFrameCount = Math.Clamp(sourceFrameCount, 2, MaxFrames);
         int[] frameIndexes = ChooseFrameIndexes(sourceFrameCount, outputFrameCount);
         int framesPerSecond = EstimateFramesPerSecond(decoder.Frames, frameIndexes);
-        int grid = (int)Math.Ceiling(Math.Sqrt(outputFrameCount));
+        int grid = SpriteSheetFrameExtractor.CalculateGrid(outputFrameCount);
         int cellSize = canvasSize / grid;
 
         DrawingVisual visual = new();

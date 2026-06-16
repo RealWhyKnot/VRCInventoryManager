@@ -35,7 +35,7 @@
                 <StackPanel>
                     <TextBlock Text="VRC Inventory Manager" FontSize="23" FontWeight="SemiBold" />
                     <TextBlock x:Name="HeaderStatusText"
-                               Text="Starting"
+                               Text="Browse local folders and VRChat inventory from one preview."
                                Foreground="{StaticResource MutedTextBrush}"
                                Margin="0,4,0,0" />
                 </StackPanel>
@@ -70,7 +70,7 @@
                     </Grid.RowDefinitions>
 
                     <DockPanel>
-                        <TextBlock Text="Local files" Style="{StaticResource SectionTitle}" />
+                        <TextBlock Text="Local browser" Style="{StaticResource SectionTitle}" />
                         <TextBlock x:Name="LocalCountText"
                                    DockPanel.Dock="Right"
                                    HorizontalAlignment="Right"
@@ -152,7 +152,7 @@
                                         </Grid.ToolTip>
                                         <Border Width="104"
                                                 Height="104"
-                                                Background="#0C0D0B"
+                                                Background="{StaticResource SurfaceBrush}"
                                                 BorderBrush="{StaticResource BorderBrushStrong}"
                                                 BorderThickness="1"
                                                 CornerRadius="6">
@@ -161,6 +161,7 @@
                                                    SnapsToDevicePixels="True"
                                                    RenderOptions.BitmapScalingMode="HighQuality"
                                                    Loaded="LocalThumbnail_Loaded"
+                                                   Unloaded="LocalThumbnail_Unloaded"
                                                    DataContextChanged="LocalThumbnail_DataContextChanged" />
                                         </Border>
                                         <TextBlock Grid.Row="1"
@@ -214,7 +215,7 @@
                     <Border Grid.Row="1"
                             BorderBrush="{StaticResource BorderBrushStrong}"
                             BorderThickness="1"
-                            Background="#0C0D0B"
+                            Background="{StaticResource SurfaceBrush}"
                             CornerRadius="8">
                         <Grid>
                             <Image x:Name="PreviewImage"
@@ -222,19 +223,23 @@
                                    SnapsToDevicePixels="True"
                                    RenderOptions.BitmapScalingMode="HighQuality" />
                             <TextBlock x:Name="PreviewEmptyText"
-                                       Text="Select a local image."
+                                       Text="Select a local or VRChat inventory item."
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        Foreground="{StaticResource MutedTextBrush}" />
                         </Grid>
                     </Border>
 
-                    <DockPanel Grid.Row="2" Margin="0,12,0,0">
+                    <Grid Grid.Row="2" Margin="0,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <TextBlock x:Name="ActionStatusText"
                                    VerticalAlignment="Center"
                                    Foreground="{StaticResource MutedTextBrush}"
                                    TextTrimming="CharacterEllipsis" />
-                        <WrapPanel DockPanel.Dock="Right" HorizontalAlignment="Right">
+                        <WrapPanel Grid.Row="1" HorizontalAlignment="Right" Margin="0,8,0,0">
                             <Button x:Name="UploadStickerButton"
                                     Content="Upload Sticker"
                                     Click="UploadSticker_Click"
@@ -249,7 +254,7 @@
                                     Style="{StaticResource PrimaryButton}"
                                     Margin="0" />
                         </WrapPanel>
-                    </DockPanel>
+                    </Grid>
                 </Grid>
             </Border>
 
@@ -293,13 +298,14 @@
                                                 Width="66"
                                                 Height="66"
                                                 Margin="0,0,10,0"
-                                                Background="#0C0D0B"
+                                                Background="{StaticResource SurfaceBrush}"
                                                 BorderBrush="{StaticResource BorderBrushStrong}"
                                                 BorderThickness="1"
                                                 CornerRadius="6">
                                             <Image Source="{Binding Thumbnail}"
                                                    Stretch="Uniform"
                                                    Loaded="RemoteThumbnail_Loaded"
+                                                   Unloaded="RemoteThumbnail_Unloaded"
                                                    DataContextChanged="RemoteThumbnail_DataContextChanged" />
                                         </Border>
                                         <DockPanel Grid.Column="1">
@@ -318,7 +324,7 @@
                                         <TextBlock Grid.Row="2"
                                                    Grid.Column="1"
                                                    Text="{Binding Id}"
-                                                   Foreground="#908A7E"
+                                                   Foreground="{StaticResource MutedTextBrush}"
                                                    FontSize="12"
                                                    TextTrimming="CharacterEllipsis" />
                                     </Grid>

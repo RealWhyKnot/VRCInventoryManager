@@ -84,7 +84,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task UploadSelectedAsync(Func<VrchatApiClient, LocalAsset, Task<UploadResult>> upload)
+    private async Task UploadSelectedAsync(
+        Func<VrchatApiClient, LocalAsset, Task<UploadResult>> upload,
+        bool squareStillPayload = true)
     {
         if (apiClient is null)
         {
@@ -101,7 +103,7 @@ public partial class MainWindow
         SetBusy(true);
         try
         {
-            ActionStatusText.Text = "Uploading...";
+            ActionStatusText.Text = GetUploadStatusText(asset, squareStillPayload);
             App.Log.Info($"Uploading '{asset.Name}'.");
             UploadResult result = await upload(apiClient, asset);
             ActionStatusText.Text = $"Uploaded {result.Id}";
@@ -137,19 +139,40 @@ public partial class MainWindow
 
     private async void UploadAnimatedEmoji_Click(object sender, RoutedEventArgs e)
     {
-        await UploadSelectedAsync((client, asset) => client.UploadAnimatedEmojiAsync(asset.Path, asset.AnimationStyle));
+        await UploadSelectedAsync(
+            (client, asset) => asset.IsGif
+                ? client.UploadAnimatedEmojiAsync(asset.Path, asset.AnimationStyle)
+                : client.UploadAnimatedEmojiSpriteSheetAsync(
+                    asset.Path,
+                    asset.AnimationStyle,
+                    asset.Frames!.Value,
+                    asset.FramesOverTime!.Value),
+            squareStillPayload: false);
     }
 
     private void RemoteFileList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (suppressRemoteSelectionChanged)
+        {
+            return;
+        }
+
         if (RemoteFileList.SelectedItem is RemoteInventoryViewModel selected)
         {
             RemoteInventoryItem item = selected.Item;
             RemoteSelectedText.Text = $"{item.Summary}\n{item.Id}\n{item.Status}";
+            suppressLocalSelectionChanged = true;
+            LocalAssetList.SelectedItem = null;
+            suppressLocalSelectionChanged = false;
+            LoadRemotePreview(item);
         }
         else
         {
             RemoteSelectedText.Text = string.Empty;
+            if (LocalAssetList.SelectedItem is null)
+            {
+                LoadRemotePreview(null);
+            }
         }
 
         UpdateButtons();
@@ -205,5 +228,24 @@ public partial class MainWindow
         stickerCount = -1;
         emojiCount = -1;
         RemoteEmptyText.Visibility = Visibility.Visible;
+    }
+
+    private static string GetUploadStatusText(LocalAsset asset, bool squareStillPayload)
+    {
+        if (!squareStillPayload)
+        {
+            return asset.IsGif ? "Converting GIF to animated emoji..." : "Uploading animated sprite sheet...";
+        }
+
+        try
+        {
+            return ImagePayloadFactory.NeedsSquarePadding(asset.Path)
+                ? "Uploading square PNG with transparent padding..."
+                : "Uploading...";
+        }
+        catch (Exception)
+        {
+            return "Uploading...";
+        }
     }
 }

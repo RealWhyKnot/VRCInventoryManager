@@ -27,11 +27,24 @@ public sealed record RemoteInventoryItem
     {
         get
         {
-            string style = string.IsNullOrWhiteSpace(AnimationStyle) ? "style n/a" : AnimationStyle;
-            string frames = Frames.HasValue && FramesOverTime.HasValue
-                ? $"{Frames.Value} frames @ {FramesOverTime.Value} fps"
-                : "static";
-            return $"{DisplayType} - {style} - {frames}";
+            List<string> parts = [DisplayType];
+            if (!string.IsNullOrWhiteSpace(AnimationStyle))
+            {
+                parts.Add(AnimationStyle);
+            }
+
+            int frames = Frames.GetValueOrDefault();
+            int framesOverTime = FramesOverTime.GetValueOrDefault();
+            if (frames > 0 && framesOverTime > 0)
+            {
+                parts.Add($"{frames} frames @ {framesOverTime} fps");
+            }
+            else if (!string.Equals(Tag, VrchatFileTags.AnimatedEmoji, StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add("static");
+            }
+
+            return string.Join(" - ", parts);
         }
     }
 }

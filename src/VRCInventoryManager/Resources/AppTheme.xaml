@@ -1,12 +1,12 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="AppBackgroundBrush" Color="#101114" />
-    <SolidColorBrush x:Key="PanelBrush" Color="#191815" />
-    <SolidColorBrush x:Key="PanelAltBrush" Color="#1F211D" />
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#121311" />
-    <SolidColorBrush x:Key="BorderBrushStrong" Color="#34352F" />
-    <SolidColorBrush x:Key="MutedTextBrush" Color="#B7B2A7" />
-    <SolidColorBrush x:Key="SoftTextBrush" Color="#D9D4CA" />
+    <SolidColorBrush x:Key="PanelBrush" Color="#17191D" />
+    <SolidColorBrush x:Key="PanelAltBrush" Color="#1D2026" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#0E1014" />
+    <SolidColorBrush x:Key="BorderBrushStrong" Color="#2D333B" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#AAB2BD" />
+    <SolidColorBrush x:Key="SoftTextBrush" Color="#D7DDE4" />
     <SolidColorBrush x:Key="AccentBrush" Color="#2DD4BF" />
     <SolidColorBrush x:Key="AccentDarkBrush" Color="#0F766E" />
     <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
@@ -36,8 +36,8 @@
         <Setter Property="Padding" Value="12,7" />
         <Setter Property="MinHeight" Value="34" />
         <Setter Property="Foreground" Value="#F7F5EF" />
-        <Setter Property="Background" Value="#282720" />
-        <Setter Property="BorderBrush" Value="#474437" />
+        <Setter Property="Background" Value="#242A32" />
+        <Setter Property="BorderBrush" Value="#3B4450" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
@@ -54,16 +54,16 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#333026" />
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#615B45" />
+                            <Setter TargetName="Root" Property="Background" Value="#2B333D" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#56616F" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#201F1A" />
+                            <Setter TargetName="Root" Property="Background" Value="#1A1F25" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="#777268" />
-                            <Setter TargetName="Root" Property="Background" Value="#171713" />
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#2A2923" />
+                            <Setter TargetName="Root" Property="Background" Value="#15181D" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#252B33" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -140,7 +140,7 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Root" Property="BorderBrush" Value="#615B45" />
+                                            <Setter TargetName="Root" Property="BorderBrush" Value="#56616F" />
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -179,7 +179,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#282720" />
+                            <Setter TargetName="Root" Property="Background" Value="#242A32" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="#0F766E" />
@@ -220,7 +220,7 @@
 
     <Style TargetType="ScrollBar">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
-        <Setter Property="Foreground" Value="#5A574D" />
+        <Setter Property="Foreground" Value="#505A66" />
         <Setter Property="Width" Value="8" />
         <Setter Property="Template">
             <Setter.Value>
@@ -267,8 +267,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#24231D" />
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#3D392F" />
+                            <Setter TargetName="Root" Property="Background" Value="#20262D" />
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#33404B" />
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
                             <Setter Property="Background" Value="#173B37" />

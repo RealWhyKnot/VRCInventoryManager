@@ -87,4 +87,25 @@ internal static class LocalAssetTests
         TestAssert.Equal("stop", AnimationStyle.FromFileName("plain.png"), "missing style fallback");
         return Task.CompletedTask;
     }
+
+    public static Task ParseLocalSpriteSheetMetadataAsync()
+    {
+        LocalAsset asset = new(
+            @"C:\tmp\avatar_inv_123_stopanimationStyle_64frames_24fps_linearloopStyle.png",
+            "avatar_inv_123_stopanimationStyle_64frames_24fps_linearloopStyle.png",
+            @"C:\tmp",
+            ".png",
+            4096,
+            DateTimeOffset.UnixEpoch);
+
+        TestAssert.Equal(64, asset.Frames, "frames");
+        TestAssert.Equal(24, asset.FramesOverTime, "fps");
+        TestAssert.True(asset.HasSpriteSheetAnimation, "sprite sheet animation");
+        TestAssert.True(asset.DetailsText.Contains("64 frames @ 24 fps", StringComparison.Ordinal), "details includes animation");
+
+        LocalAsset still = asset with { Name = "avatar_stopanimationStyle.png" };
+        TestAssert.Equal(null, still.Frames, "still frames");
+        TestAssert.False(still.HasSpriteSheetAnimation, "still image");
+        return Task.CompletedTask;
+    }
 }

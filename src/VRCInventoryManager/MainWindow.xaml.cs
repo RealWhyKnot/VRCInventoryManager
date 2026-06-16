@@ -25,6 +25,8 @@ public partial class MainWindow : Window
     private HttpClient? httpClient;
     private bool loaded;
     private bool updatingFolderTree;
+    private bool suppressLocalSelectionChanged;
+    private bool suppressRemoteSelectionChanged;
     private int busyDepth;
     private int stickerCount = -1;
     private int emojiCount = -1;

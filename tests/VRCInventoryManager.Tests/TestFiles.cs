@@ -25,11 +25,35 @@ internal static class TestFiles
         bitmap.Save(path, ImageFormat.Png);
     }
 
+    public static void WritePng(string path, int width, int height, DrawingColor color)
+    {
+        using Bitmap bitmap = new(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(color);
+        bitmap.Save(path, ImageFormat.Png);
+    }
+
+    public static void WriteJpeg(string path, int width, int height, DrawingColor color)
+    {
+        using Bitmap bitmap = new(width, height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
+        using Graphics graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(color);
+        bitmap.Save(path, ImageFormat.Jpeg);
+    }
+
     public static void WriteAnimatedGif(string path)
     {
+        WriteAnimatedGif(path, MediaColors.Red, MediaColors.Blue);
+    }
+
+    public static void WriteAnimatedGif(string path, params System.Windows.Media.Color[] colors)
+    {
         GifBitmapEncoder encoder = new();
-        encoder.Frames.Add(BitmapFrame.Create(CreateBitmapSource(MediaColors.Red)));
-        encoder.Frames.Add(BitmapFrame.Create(CreateBitmapSource(MediaColors.Blue)));
+        foreach (System.Windows.Media.Color color in colors)
+        {
+            encoder.Frames.Add(BitmapFrame.Create(CreateBitmapSource(color)));
+        }
+
         using FileStream stream = File.Create(path);
         encoder.Save(stream);
     }

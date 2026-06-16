@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -15,23 +16,33 @@ public partial class MainWindow
     private List<BitmapSource> previewFrames = [];
     private List<TimeSpan> previewFrameDelays = [];
     private CancellationTokenSource? previewLoadCts;
-    private LocalAsset? pendingPreviewAsset;
+    private PreviewRequest? pendingPreviewRequest;
     private int previewFrameIndex;
 
     private void LoadPreview(LocalAsset? asset)
     {
-        pendingPreviewAsset = asset;
+        SetPreviewRequest(asset is null ? null : PreviewRequest.FromLocal(asset));
+    }
+
+    private void LoadRemotePreview(RemoteInventoryItem? item)
+    {
+        SetPreviewRequest(item is null ? null : PreviewRequest.FromRemote(item));
+    }
+
+    private void SetPreviewRequest(PreviewRequest? request)
+    {
+        pendingPreviewRequest = request;
         previewSelectionTimer.Stop();
         CancelPreviewLoad();
-        if (asset is null)
+        if (request is null)
         {
             ClearPreview();
             return;
         }
 
         StopPreviewAnimation();
-        SelectedFileTitle.Text = asset.Name;
-        SelectedFileText.Text = $"{asset.SizeText}  style {asset.AnimationStyle}";
+        SelectedFileTitle.Text = request.Title;
+        SelectedFileText.Text = request.Details;
         PreviewImage.Source = null;
         PreviewImage.Visibility = Visibility.Collapsed;
         PreviewEmptyText.Text = "Loading preview...";
@@ -42,16 +53,16 @@ public partial class MainWindow
     private async void PreviewSelectionTimer_Tick(object? sender, EventArgs e)
     {
         previewSelectionTimer.Stop();
-        LocalAsset? asset = pendingPreviewAsset;
-        if (asset is null)
+        PreviewRequest? request = pendingPreviewRequest;
+        if (request is null)
         {
             return;
         }
 
-        await LoadPreviewAsync(asset);
+        await LoadPreviewAsync(request);
     }
 
-    private async Task LoadPreviewAsync(LocalAsset asset)
+    private async Task LoadPreviewAsync(PreviewRequest request)
     {
         CancellationTokenSource cts = new();
         CancellationToken cancellationToken = cts.Token;
@@ -59,31 +70,69 @@ public partial class MainWindow
         try
         {
             int decodeWidth = GetPreviewDecodeWidth();
-            if (asset.IsGif)
+            if (request.LocalAsset is { } asset)
             {
-                AnimatedPreview preview = await Task.Run(
-                    () => LoadAnimatedPreview(asset.Path, decodeWidth, cancellationToken),
-                    cancellationToken);
-                if (!IsCurrentPreview(asset, cancellationToken))
+                if (asset.IsGif)
                 {
-                    return;
-                }
+                    AnimatedImageFrames preview = await Task.Run(
+                        () => LoadAnimatedGifPreview(asset.Path, decodeWidth, cancellationToken),
+                        cancellationToken);
+                    if (!IsCurrentPreview(request, cancellationToken))
+                    {
+                        return;
+                    }
 
-                ApplyAnimatedPreview(preview);
+                    ApplyAnimatedPreview(preview);
+                }
+                else if (asset.HasSpriteSheetAnimation)
+                {
+                    AnimatedImageFrames preview = await Task.Run(
+                        () => LoadLocalSpriteSheetPreview(asset, decodeWidth, cancellationToken),
+                        cancellationToken);
+                    if (!IsCurrentPreview(request, cancellationToken))
+                    {
+                        return;
+                    }
+
+                    ApplyAnimatedPreview(preview);
+                }
+                else
+                {
+                    BitmapImage image = await Task.Run(
+                        () => LoadBitmap(asset.Path, decodeWidth, cancellationToken),
+                        cancellationToken);
+                    if (!IsCurrentPreview(request, cancellationToken))
+                    {
+                        return;
+                    }
+
+                    ApplyStaticPreview(image);
+                }
             }
-            else
+            else if (request.RemoteItem is { } remoteItem)
             {
-                BitmapImage image = await Task.Run(
-                    () => LoadBitmap(asset.Path, decodeWidth, cancellationToken),
+                if (string.IsNullOrWhiteSpace(remoteItem.PreviewUrl))
+                {
+                    throw new InvalidOperationException("Remote file does not have a preview URL.");
+                }
+
+                byte[] bytes = await thumbnailLoader.DownloadRemoteBytesAsync(remoteItem.PreviewUrl, cancellationToken);
+                PreviewRender render = await Task.Run(
+                    () => LoadRemotePreviewRender(bytes, remoteItem, decodeWidth, cancellationToken),
                     cancellationToken);
-                if (!IsCurrentPreview(asset, cancellationToken))
+                if (!IsCurrentPreview(request, cancellationToken))
                 {
                     return;
                 }
 
-                PreviewImage.Source = image;
-                PreviewImage.Visibility = Visibility.Visible;
-                PreviewEmptyText.Visibility = Visibility.Collapsed;
+                if (render.Animation is not null)
+                {
+                    ApplyAnimatedPreview(render.Animation);
+                }
+                else
+                {
+                    ApplyStaticPreview(render.Image!);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -91,16 +140,16 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            if (IsCurrentPreview(asset, cancellationToken))
+            if (IsCurrentPreview(request, cancellationToken))
             {
                 StopPreviewAnimation();
                 PreviewImage.Source = null;
                 PreviewImage.Visibility = Visibility.Collapsed;
                 PreviewEmptyText.Text = "Preview failed.";
                 PreviewEmptyText.Visibility = Visibility.Visible;
-                SelectedFileTitle.Text = asset.Name;
+                SelectedFileTitle.Text = request.Title;
                 SelectedFileText.Text = "Preview failed.";
-                App.Log.Error($"Preview failed for '{asset.Path}'.", ex);
+                App.Log.Error($"Preview failed for '{request.Key}'.", ex);
             }
         }
         finally
@@ -115,6 +164,19 @@ public partial class MainWindow
 
     private void LocalAssetList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (suppressLocalSelectionChanged)
+        {
+            return;
+        }
+
+        if (LocalAssetList.SelectedItem is LocalAssetViewModel)
+        {
+            suppressRemoteSelectionChanged = true;
+            RemoteFileList.SelectedItem = null;
+            suppressRemoteSelectionChanged = false;
+            RemoteSelectedText.Text = string.Empty;
+        }
+
         LoadPreview((LocalAssetList.SelectedItem as LocalAssetViewModel)?.Asset);
         UpdateButtons();
     }
@@ -124,14 +186,29 @@ public partial class MainWindow
         if (sender is FrameworkElement { DataContext: LocalAssetViewModel asset })
         {
             await asset.EnsureThumbnailAsync(thumbnailLoader);
+            asset.StartThumbnailAnimation();
+        }
+    }
+
+    private void LocalThumbnail_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: LocalAssetViewModel asset })
+        {
+            asset.StopThumbnailAnimation();
         }
     }
 
     private async void LocalThumbnail_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        if (e.OldValue is LocalAssetViewModel oldAsset)
+        {
+            oldAsset.StopThumbnailAnimation();
+        }
+
         if (e.NewValue is LocalAssetViewModel asset)
         {
             await asset.EnsureThumbnailAsync(thumbnailLoader);
+            asset.StartThumbnailAnimation();
         }
     }
 
@@ -140,26 +217,41 @@ public partial class MainWindow
         if (sender is FrameworkElement { DataContext: RemoteInventoryViewModel item })
         {
             await item.EnsureThumbnailAsync(thumbnailLoader);
+            item.StartThumbnailAnimation();
+        }
+    }
+
+    private void RemoteThumbnail_Unloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: RemoteInventoryViewModel item })
+        {
+            item.StopThumbnailAnimation();
         }
     }
 
     private async void RemoteThumbnail_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        if (e.OldValue is RemoteInventoryViewModel oldItem)
+        {
+            oldItem.StopThumbnailAnimation();
+        }
+
         if (e.NewValue is RemoteInventoryViewModel item)
         {
             await item.EnsureThumbnailAsync(thumbnailLoader);
+            item.StartThumbnailAnimation();
         }
     }
 
     private void ClearPreview()
     {
-        pendingPreviewAsset = null;
+        pendingPreviewRequest = null;
         previewSelectionTimer.Stop();
         CancelPreviewLoad();
         StopPreviewAnimation();
         PreviewImage.Source = null;
         PreviewImage.Visibility = Visibility.Collapsed;
-        PreviewEmptyText.Text = "Select a local image.";
+        PreviewEmptyText.Text = "Select a local or VRChat inventory item.";
         PreviewEmptyText.Visibility = Visibility.Visible;
         SelectedFileTitle.Text = "Preview";
         SelectedFileText.Text = string.Empty;
@@ -185,7 +277,7 @@ public partial class MainWindow
         previewLoadCts = null;
     }
 
-    private AnimatedPreview LoadAnimatedPreview(string path, int decodeWidth, CancellationToken cancellationToken)
+    private AnimatedImageFrames LoadAnimatedGifPreview(string path, int decodeWidth, CancellationToken cancellationToken)
     {
         GifBitmapDecoder decoder = new(
             new Uri(path, UriKind.Absolute),
@@ -206,10 +298,90 @@ public partial class MainWindow
             throw new InvalidOperationException("GIF did not contain preview frames.");
         }
 
-        return new AnimatedPreview(frames, delays);
+        return new AnimatedImageFrames(frames, delays);
     }
 
-    private void ApplyAnimatedPreview(AnimatedPreview preview)
+    private AnimatedImageFrames LoadAnimatedGifPreview(byte[] bytes, int decodeWidth, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using MemoryStream stream = new(bytes);
+        GifBitmapDecoder decoder = new(
+            stream,
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad);
+
+        List<BitmapSource> frames = [];
+        List<TimeSpan> delays = [];
+        foreach (BitmapFrame frame in decoder.Frames)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            frames.Add(ResizeFrame(frame, decodeWidth));
+            delays.Add(GetFrameDelay(frame));
+        }
+
+        if (frames.Count == 0)
+        {
+            throw new InvalidOperationException("GIF did not contain preview frames.");
+        }
+
+        return new AnimatedImageFrames(frames, delays);
+    }
+
+    private PreviewRender LoadRemotePreviewRender(
+        byte[] bytes,
+        RemoteInventoryItem item,
+        int decodeWidth,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (LooksLikeGif(bytes, item))
+        {
+            return PreviewRender.FromAnimation(LoadAnimatedGifPreview(bytes, decodeWidth, cancellationToken));
+        }
+
+        if (SpriteSheetFrameExtractor.CanAnimate(item.Frames, item.FramesOverTime))
+        {
+            try
+            {
+                int grid = SpriteSheetFrameExtractor.CalculateGrid(item.Frames!.Value);
+                int sheetDecodeWidth = Math.Clamp(decodeWidth * grid, 512, 2048);
+                BitmapImage spriteSheet = LoadBitmap(bytes, sheetDecodeWidth, cancellationToken);
+                AnimatedImageFrames frames = SpriteSheetFrameExtractor.Extract(
+                    spriteSheet,
+                    item.Frames.Value,
+                    item.FramesOverTime!.Value,
+                    decodeWidth);
+                return PreviewRender.FromAnimation(frames);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                App.Log.Warning($"Animated remote preview fell back to static for '{item.Id}': {ex.Message}");
+            }
+        }
+
+        return PreviewRender.FromImage(LoadBitmap(bytes, decodeWidth, cancellationToken));
+    }
+
+    private AnimatedImageFrames LoadLocalSpriteSheetPreview(
+        LocalAsset asset,
+        int decodeWidth,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        int frames = asset.Frames.GetValueOrDefault();
+        int framesOverTime = asset.FramesOverTime.GetValueOrDefault();
+        if (!SpriteSheetFrameExtractor.CanAnimate(frames, framesOverTime))
+        {
+            throw new InvalidOperationException("Local sprite sheet is missing animation metadata.");
+        }
+
+        int grid = SpriteSheetFrameExtractor.CalculateGrid(frames);
+        int sheetDecodeWidth = Math.Clamp(decodeWidth * grid, 512, 2048);
+        BitmapImage spriteSheet = LoadBitmap(asset.Path, sheetDecodeWidth, cancellationToken);
+        return SpriteSheetFrameExtractor.Extract(spriteSheet, frames, framesOverTime, decodeWidth);
+    }
+
+    private void ApplyAnimatedPreview(AnimatedImageFrames preview)
     {
         previewFrames = preview.Frames.ToList();
         previewFrameDelays = preview.Delays.ToList();
@@ -222,6 +394,14 @@ public partial class MainWindow
             previewTimer.Interval = previewFrameDelays[0];
             previewTimer.Start();
         }
+    }
+
+    private void ApplyStaticPreview(BitmapSource image)
+    {
+        StopPreviewAnimation();
+        PreviewImage.Source = image;
+        PreviewImage.Visibility = Visibility.Visible;
+        PreviewEmptyText.Visibility = Visibility.Collapsed;
     }
 
     private void PreviewTimer_Tick(object? sender, EventArgs e)
@@ -252,6 +432,22 @@ public partial class MainWindow
         return image;
     }
 
+    private BitmapImage LoadBitmap(byte[] bytes, int decodeWidth, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using MemoryStream stream = new(bytes);
+        BitmapImage image = new();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+        image.DecodePixelWidth = decodeWidth;
+        image.StreamSource = stream;
+        image.EndInit();
+        image.Freeze();
+
+        return image;
+    }
+
     private int GetPreviewDecodeWidth()
     {
         double width = Math.Max(PreviewImage.ActualWidth, 800);
@@ -259,9 +455,9 @@ public partial class MainWindow
         return Math.Clamp((int)Math.Ceiling(width * dpiScale), 512, 2048);
     }
 
-    private bool IsCurrentPreview(LocalAsset asset, CancellationToken cancellationToken) =>
+    private bool IsCurrentPreview(PreviewRequest request, CancellationToken cancellationToken) =>
         !cancellationToken.IsCancellationRequested &&
-        string.Equals(pendingPreviewAsset?.Path, asset.Path, StringComparison.OrdinalIgnoreCase);
+        string.Equals(pendingPreviewRequest?.Key, request.Key, StringComparison.OrdinalIgnoreCase);
 
     private static BitmapSource ResizeFrame(BitmapSource source, int decodeWidth)
     {
@@ -304,5 +500,32 @@ public partial class MainWindow
         return TimeSpan.FromMilliseconds(100);
     }
 
-    private sealed record AnimatedPreview(IReadOnlyList<BitmapSource> Frames, IReadOnlyList<TimeSpan> Delays);
+    private static bool LooksLikeGif(byte[] bytes, RemoteInventoryItem item) =>
+        item.MimeType.Contains("gif", StringComparison.OrdinalIgnoreCase) ||
+        bytes is [0x47, 0x49, 0x46, ..];
+
+    private sealed record PreviewRequest(
+        string Key,
+        string Title,
+        string Details,
+        LocalAsset? LocalAsset,
+        RemoteInventoryItem? RemoteItem)
+    {
+        public static PreviewRequest FromLocal(LocalAsset asset) =>
+            new($"local:{asset.Path}", asset.Name, $"{asset.SizeText}  style {asset.AnimationStyle}", asset, null);
+
+        public static PreviewRequest FromRemote(RemoteInventoryItem item)
+        {
+            string title = string.IsNullOrWhiteSpace(item.Name) ? item.DisplayType : item.Name;
+            string status = string.IsNullOrWhiteSpace(item.Status) ? item.Summary : $"{item.Summary}  {item.Status}";
+            return new($"remote:{item.Id}:{item.PreviewUrl}", title, status, null, item);
+        }
+    }
+
+    private sealed record PreviewRender(BitmapSource? Image, AnimatedImageFrames? Animation)
+    {
+        public static PreviewRender FromImage(BitmapSource image) => new(image, null);
+
+        public static PreviewRender FromAnimation(AnimatedImageFrames animation) => new(null, animation);
+    }
 }

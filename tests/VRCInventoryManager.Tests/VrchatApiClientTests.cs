@@ -33,12 +33,22 @@ internal static class VrchatApiClientTests
 
             UploadResult upload = await client.UploadStaticEmojiAsync(pngPath, "like");
             TestAssert.Equal("file_uploaded", upload.Id, "upload id");
+            UploadResult animatedUpload = await client.UploadAnimatedEmojiSpriteSheetAsync(pngPath, "stop", 64, 24);
+            TestAssert.Equal("file_uploaded", animatedUpload.Id, "animated upload id");
             await client.DeleteFileAsync("file_uploaded");
 
-            CapturedRequest uploadRequest = handler.Requests.Single(request => request.Method == HttpMethod.Post);
+            List<CapturedRequest> uploadRequests = handler.Requests.Where(request => request.Method == HttpMethod.Post).ToList();
+            TestAssert.Equal(2, uploadRequests.Count, "upload request count");
+            CapturedRequest uploadRequest = uploadRequests[0];
             TestAssert.True(uploadRequest.Body.Contains("name=tag", StringComparison.Ordinal), "multipart has tag name");
             TestAssert.True(uploadRequest.Body.Contains("emoji", StringComparison.Ordinal), "multipart has emoji tag");
             TestAssert.True(uploadRequest.Body.Contains("name=animationStyle", StringComparison.Ordinal), "multipart has animation style");
+            CapturedRequest animatedUploadRequest = uploadRequests[1];
+            TestAssert.True(animatedUploadRequest.Body.Contains("emojianimated", StringComparison.Ordinal), "multipart has animated emoji tag");
+            TestAssert.True(animatedUploadRequest.Body.Contains("name=frames", StringComparison.Ordinal), "multipart has frame count");
+            TestAssert.True(animatedUploadRequest.Body.Contains("64", StringComparison.Ordinal), "multipart has frame count value");
+            TestAssert.True(animatedUploadRequest.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "multipart has fps");
+            TestAssert.True(animatedUploadRequest.Body.Contains("24", StringComparison.Ordinal), "multipart has fps value");
             TestAssert.True(uploadRequest.Headers.TryGetValue("Cookie", out string? cookieHeader), "cookie header present");
             TestAssert.Equal("auth=auth_cookie; twoFactorAuth=two_factor_cookie", cookieHeader, "cookie header");
             TestAssert.True(handler.Requests.Any(request => request.Method == HttpMethod.Delete && request.Uri.AbsolutePath.EndsWith("/file/file_uploaded", StringComparison.Ordinal)), "delete path");

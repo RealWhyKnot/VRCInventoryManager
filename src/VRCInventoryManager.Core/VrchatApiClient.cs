@@ -91,6 +91,33 @@ public sealed class VrchatApiClient
             cancellationToken);
     }
 
+    public async Task<UploadResult> UploadAnimatedEmojiSpriteSheetAsync(
+        string path,
+        string animationStyle,
+        int frames,
+        int framesOverTime,
+        CancellationToken cancellationToken = default)
+    {
+        if (frames <= 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frames), "Animated emoji upload requires at least two frames.");
+        }
+
+        if (framesOverTime <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(framesOverTime), "Animated emoji upload requires a positive frame rate.");
+        }
+
+        byte[] bytes = ImagePayloadFactory.GetPngPayload(path);
+        return await UploadImageAsync(
+            bytes,
+            VrchatFileTags.AnimatedEmoji,
+            animationStyle,
+            Math.Min(frames, GifSpriteSheetConverter.MaxFrames),
+            Math.Clamp(framesOverTime, 1, GifSpriteSheetConverter.MaxFramesPerSecond),
+            cancellationToken);
+    }
+
     public async Task DeleteFileAsync(string fileId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(fileId))
