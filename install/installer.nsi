@@ -20,6 +20,8 @@ RequestExecutionLevel user
 ShowInstDetails show
 CRCCheck force
 SetOverwrite on
+Icon "..\src\VRCInventoryManager\Assets\AppIcon.ico"
+UninstallIcon "..\src\VRCInventoryManager\Assets\AppIcon.ico"
 
 VIProductVersion "${NUMERIC_VERSION}"
 VIAddVersionKey /LANG=1033 "ProductName" "VRCInventoryManager"

@@ -2,8 +2,10 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -52,6 +54,12 @@ public partial class MainWindow : Window
         };
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        EnableDarkTitleBar();
+    }
+
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
     {
         if (loaded)
@@ -61,7 +69,6 @@ public partial class MainWindow : Window
 
         try
         {
-            LogFileText.Text = App.Log.FilePath ?? "Debug log unavailable.";
             settings = settingsStore.Load();
             ConfigureFolders();
             SelectInitialFolder(settings.LocalRoot);
@@ -556,30 +563,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OpenLog_Click(object sender, RoutedEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(App.Log.FilePath))
-        {
-            WpfMessageBox.Show(this, "Debug log is unavailable.", "Open log", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        try
-        {
-            ProcessStartInfo startInfo = new()
-            {
-                FileName = App.Log.FilePath,
-                UseShellExecute = true
-            };
-            Process.Start(startInfo);
-        }
-        catch (Exception ex)
-        {
-            App.Log.Error("Could not open debug log.", ex);
-            WpfMessageBox.Show(this, ex.Message, "Open log failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
     private void DisconnectRemote()
     {
         apiClient = null;
@@ -701,6 +684,30 @@ public partial class MainWindow : Window
             Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             Path.GetFullPath(KnownFolders.DefaultPhotosFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
+
+    private void EnableDarkTitleBar()
+    {
+        try
+        {
+            IntPtr handle = new WindowInteropHelper(this).Handle;
+            if (handle == IntPtr.Zero)
+            {
+                return;
+            }
+
+            int enabled = 1;
+            _ = DwmSetWindowAttribute(handle, 20, ref enabled, sizeof(int));
+        }
+        catch (DllNotFoundException)
+        {
+        }
+        catch (EntryPointNotFoundException)
+        {
+        }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     private sealed record FolderChoice(string Name, string Path)
     {

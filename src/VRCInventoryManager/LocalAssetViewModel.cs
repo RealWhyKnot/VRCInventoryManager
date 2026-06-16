@@ -31,6 +31,10 @@ internal sealed class LocalAssetViewModel(LocalAsset asset) : INotifyPropertyCha
 
     public string DetailsText => Asset.DetailsText;
 
+    public string TileMeta => $"{Asset.Extension.TrimStart('.').ToUpperInvariant()}  {Asset.SizeText}";
+
+    public string FolderName => Asset.Bucket;
+
     public async Task EnsureThumbnailAsync(ImageThumbnailLoader loader)
     {
         if (thumbnailRequested)
