@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.IO;
 using System.Net.Http;
 using System.Windows.Media.Imaging;
@@ -9,20 +8,27 @@ namespace VRCInventoryManager;
 internal sealed class ImageThumbnailLoader : IDisposable
 {
     private const int ThumbnailWidth = 120;
-    private readonly ConcurrentDictionary<string, Task<BitmapSource?>> localCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, Task<BitmapSource?>> remoteCache = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxLocalCacheEntries = 512;
+    private const int MaxRemoteCacheEntries = 128;
+    private readonly Dictionary<string, ThumbnailCacheEntry> localCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry> remoteCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object localCacheGate = new();
+    private readonly object remoteCacheGate = new();
     private readonly SemaphoreSlim localGate = new(2);
     private readonly SemaphoreSlim remoteGate = new(4);
     private readonly HttpClient httpClient = new();
     private readonly object authGate = new();
     private VrcxAuthCookies? remoteCookies;
     private string remoteUserAgent = "VRCInventoryManager";
+    private long cacheStamp;
 
     public Task<BitmapSource?> LoadLocalAsync(LocalAsset asset) =>
-        localCache.GetOrAdd(asset.Path, _ => LoadLocalCoreAsync(asset));
+        GetOrAddCache(localCache, localCacheGate, asset.Path, () => LoadLocalCoreAsync(asset), MaxLocalCacheEntries);
 
     public Task<BitmapSource?> LoadRemoteAsync(string url) =>
-        remoteCache.GetOrAdd(url, _ => LoadRemoteCoreAsync(url));
+        GetOrAddCache(remoteCache, remoteCacheGate, url, () => LoadRemoteCoreAsync(url), MaxRemoteCacheEntries);
+
+    public void ClearLocal() => ClearCache(localCache, localCacheGate);
 
     public void ConfigureRemoteAuth(VrcxAuthCookies cookies, string userAgent)
     {
@@ -30,8 +36,9 @@ internal sealed class ImageThumbnailLoader : IDisposable
         {
             remoteCookies = cookies;
             remoteUserAgent = string.IsNullOrWhiteSpace(userAgent) ? "VRCInventoryManager" : userAgent;
-            remoteCache.Clear();
         }
+
+        ClearCache(remoteCache, remoteCacheGate);
     }
 
     public void ClearRemoteAuth()
@@ -39,8 +46,9 @@ internal sealed class ImageThumbnailLoader : IDisposable
         lock (authGate)
         {
             remoteCookies = null;
-            remoteCache.Clear();
         }
+
+        ClearCache(remoteCache, remoteCacheGate);
     }
 
     public void Dispose()
@@ -48,6 +56,56 @@ internal sealed class ImageThumbnailLoader : IDisposable
         localGate.Dispose();
         remoteGate.Dispose();
         httpClient.Dispose();
+    }
+
+    private Task<BitmapSource?> GetOrAddCache(
+        Dictionary<string, ThumbnailCacheEntry> cache,
+        object gate,
+        string key,
+        Func<Task<BitmapSource?>> factory,
+        int maxEntries)
+    {
+        lock (gate)
+        {
+            long stamp = Interlocked.Increment(ref cacheStamp);
+            if (cache.TryGetValue(key, out ThumbnailCacheEntry? existing))
+            {
+                existing.LastAccess = stamp;
+                return existing.Task;
+            }
+
+            Task<BitmapSource?> task = factory();
+            cache[key] = new ThumbnailCacheEntry(task, stamp);
+            TrimCache(cache, maxEntries);
+            return task;
+        }
+    }
+
+    private static void ClearCache(Dictionary<string, ThumbnailCacheEntry> cache, object gate)
+    {
+        lock (gate)
+        {
+            cache.Clear();
+        }
+    }
+
+    private static void TrimCache(Dictionary<string, ThumbnailCacheEntry> cache, int maxEntries)
+    {
+        int removeCount = cache.Count - maxEntries;
+        if (removeCount <= 0)
+        {
+            return;
+        }
+
+        string[] keysToRemove = cache
+            .OrderBy(entry => entry.Value.LastAccess)
+            .Take(removeCount)
+            .Select(entry => entry.Key)
+            .ToArray();
+        foreach (string key in keysToRemove)
+        {
+            cache.Remove(key);
+        }
     }
 
     private async Task<BitmapSource?> LoadLocalCoreAsync(LocalAsset asset)
@@ -168,4 +226,11 @@ internal sealed class ImageThumbnailLoader : IDisposable
     private static bool ShouldSendVrchatCookies(string url) =>
         Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&
         uri.Host.EndsWith("vrchat.cloud", StringComparison.OrdinalIgnoreCase);
+
+    private sealed class ThumbnailCacheEntry(Task<BitmapSource?> task, long lastAccess)
+    {
+        public Task<BitmapSource?> Task { get; } = task;
+
+        public long LastAccess { get; set; } = lastAccess;
+    }
 }

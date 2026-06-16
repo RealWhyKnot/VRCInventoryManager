@@ -8,6 +8,8 @@ public sealed record LocalAsset(
     long Length,
     DateTimeOffset LastWriteTime)
 {
+    public string RelativeDirectory { get; init; } = string.Empty;
+
     public bool IsGif => string.Equals(Extension, ".gif", StringComparison.OrdinalIgnoreCase);
 
     public string AnimationStyle => VRCInventoryManager.Core.AnimationStyle.FromFileName(Name);

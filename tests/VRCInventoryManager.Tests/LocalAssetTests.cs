@@ -25,9 +25,12 @@ internal static class LocalAssetTests
             TestAssert.True(assets.Any(asset => asset.Name == "first.png"), "first image found");
             TestAssert.True(assets.Any(asset => asset.Name == "second.jpg"), "nested image found");
             TestAssert.True(assets.Any(asset => asset.Bucket == "nested"), "bucket from directory");
+            TestAssert.True(assets.Any(asset => asset.Name == "first.png" && asset.RelativeDirectory == string.Empty), "root relative directory");
+            TestAssert.True(assets.Any(asset => asset.Name == "second.jpg" && asset.RelativeDirectory == "nested"), "nested relative directory");
 
             IReadOnlyList<LocalAsset> filtered = scanner.Scan(root, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Emoji" });
             TestAssert.Equal(2, filtered.Count, "excluded top-level folder");
+            TestAssert.False(filtered.Any(asset => asset.RelativeDirectory == "Emoji"), "excluded folder absent");
             return Task.CompletedTask;
         }
         finally

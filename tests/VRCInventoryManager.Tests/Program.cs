@@ -6,6 +6,8 @@ TestCase[] tests =
     new("format local asset details", LocalAssetTests.FormatLocalAssetDetailsAsync),
     new("write debug log file", LocalAssetTests.WriteDebugLogFileAsync),
     new("parse animation style from file name", LocalAssetTests.ParseAnimationStyleFromFileNameAsync),
+    new("build folder tree with rollup counts", FolderTreeBuilderTests.BuildFolderTreeWithRollupCountsAsync),
+    new("match local assets by folder and query", LocalAssetFilterTests.MatchFolderSubfoldersAndQueryAsync),
     new("parse VRCX cookie payload", VrcxCookieTests.ParseCookiePayloadAsync),
     new("load VRCX cookies from sqlite copy", VrcxCookieTests.LoadCookiesFromSqliteCopyAsync),
     new("convert animated GIF to sprite sheet", GifSpriteSheetConverterTests.ConvertAnimatedGifToSpriteSheetAsync),

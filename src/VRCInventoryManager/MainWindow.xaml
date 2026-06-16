@@ -65,6 +65,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="0.34*" MinHeight="120" MaxHeight="220" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
@@ -80,8 +81,6 @@
                     <StackPanel Grid.Row="1" Margin="0,8,0,12">
                         <TextBlock Text="Folder" Style="{StaticResource FieldLabel}" />
                         <ComboBox x:Name="FolderCombo" SelectionChanged="FolderCombo_SelectionChanged" />
-                        <TextBlock Text="Month" Style="{StaticResource FieldLabel}" />
-                        <ComboBox x:Name="MonthCombo" SelectionChanged="MonthCombo_SelectionChanged" />
                         <DockPanel Margin="0,8,0,0">
                             <Button Content="Browse" Click="Browse_Click" DockPanel.Dock="Left" />
                             <Button Content="Refresh" Click="RefreshLocal_Click" DockPanel.Dock="Left" />
@@ -95,7 +94,38 @@
                         <TextBox x:Name="SearchBox" TextChanged="SearchBox_TextChanged" />
                     </StackPanel>
 
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="2" Margin="0,0,0,12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <DockPanel Margin="0,0,0,6">
+                            <TextBlock Text="Folders" Style="{StaticResource FieldLabel}" Margin="0" />
+                            <CheckBox x:Name="IncludeSubfoldersCheckBox"
+                                      DockPanel.Dock="Right"
+                                      Content="Include subfolders"
+                                      IsChecked="True"
+                                      Checked="IncludeSubfolders_Changed"
+                                      Unchecked="IncludeSubfolders_Changed" />
+                        </DockPanel>
+                        <TreeView x:Name="FolderTree"
+                                  Grid.Row="1"
+                                  SelectedItemChanged="FolderTree_SelectedItemChanged">
+                            <TreeView.ItemTemplate>
+                                <HierarchicalDataTemplate ItemsSource="{Binding Children}">
+                                    <DockPanel LastChildFill="True" ToolTip="{Binding FullPath}">
+                                        <TextBlock DockPanel.Dock="Right"
+                                                   Text="{Binding CountText}"
+                                                   Foreground="{StaticResource MutedTextBrush}"
+                                                   Margin="8,0,0,0" />
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    </DockPanel>
+                                </HierarchicalDataTemplate>
+                            </TreeView.ItemTemplate>
+                        </TreeView>
+                    </Grid>
+
+                    <Grid Grid.Row="3">
                         <ListBox x:Name="LocalAssetList"
                                  ItemContainerStyle="{StaticResource GalleryItemStyle}"
                                  ScrollViewer.CanContentScroll="True"

@@ -22,6 +22,7 @@ public sealed class LocalAssetScanner
             return [];
         }
 
+        string normalizedRoot = NormalizeDirectory(root);
         List<LocalAsset> assets = [];
         foreach (string file in EnumerateFiles(root, excludedTopLevelDirectories))
         {
@@ -34,13 +35,18 @@ public sealed class LocalAssetScanner
             try
             {
                 FileInfo info = new(file);
+                string directory = info.DirectoryName ?? normalizedRoot;
+                string relativeDirectory = Path.GetRelativePath(normalizedRoot, directory);
                 assets.Add(new LocalAsset(
                     info.FullName,
                     info.Name,
-                    info.DirectoryName ?? string.Empty,
+                    directory,
                     info.Extension,
                     info.Length,
-                    info.LastWriteTimeUtc));
+                    info.LastWriteTimeUtc)
+                {
+                    RelativeDirectory = LocalAssetFilter.NormalizeRelativeDirectory(relativeDirectory)
+                });
             }
             catch (IOException)
             {
