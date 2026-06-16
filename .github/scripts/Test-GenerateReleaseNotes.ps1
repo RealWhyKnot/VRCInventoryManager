@@ -55,7 +55,7 @@ try {
     Invoke-TestGit config user.email whyknot@example.invalid
 
     New-Item -ItemType Directory -Force -Path ".github/release-template" | Out-Null
-    Write-TestFile -Path ".github/release-template/links.md" -Content "## Links`n`n- Download {zip-name}"
+    Write-TestFile -Path ".github/release-template/links.md" -Content "## Links`n`n- Download {zip-name}`n- Commit {commit-sha-short}"
     Write-TestFile -Path ".github/release-template/install.md" -Content "## Install`n`nRun Setup.exe."
     Write-TestFile -Path ".github/release-template/uninstall.md" -Content ""
     Write-TestFile -Path ".github/release-template/what-you-need-to-do.md" -Content ""
@@ -66,6 +66,10 @@ try {
     Commit-TestChange -Path "app.txt" -Content "feature`n" -Subject "feat(ui): add folder grid"
     Commit-TestChange -Path "app.txt" -Content "fix`n" -Subject "fix(release): mark beta releases"
     Invoke-TestGit tag -a v2026.6.16.0-beta -m "VRCInventoryManager v2026.6.16.0-beta"
+    $tagObjectShort = (& git rev-parse --short=12 v2026.6.16.0-beta).Trim()
+    if ($LASTEXITCODE -ne 0) { throw "git rev-parse v2026.6.16.0-beta failed" }
+    $tagCommitShort = (& git rev-parse --short=12 "v2026.6.16.0-beta^{commit}").Trim()
+    if ($LASTEXITCODE -ne 0) { throw "git rev-parse v2026.6.16.0-beta^{commit} failed" }
 
     $notes = (& $generator `
         -Tag v2026.6.16.0-beta `
@@ -82,6 +86,10 @@ try {
     Assert-Contains -Text $notes -Expected "compare/v2026.6.15.0...v2026.6.16.0-beta"
     Assert-Contains -Text $notes -Expected "VRCInventoryManager-v2026.6.16.0-beta.integrity.tsv"
     Assert-Contains -Text $notes -Expected "Download VRCInventoryManager-v2026.6.16.0-beta-win-x64.zip"
+    Assert-Contains -Text $notes -Expected "Commit $tagCommitShort"
+    if ($tagObjectShort -ne $tagCommitShort -and $notes.Contains("Commit $tagObjectShort")) {
+        throw "Release notes should use the tagged commit, not the annotated tag object."
+    }
 
     Write-Host "Generate-ReleaseNotes tests passed."
 }

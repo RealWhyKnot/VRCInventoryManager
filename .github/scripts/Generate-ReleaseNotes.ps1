@@ -238,7 +238,7 @@ if (-not [string]::IsNullOrWhiteSpace($Repo) -and $Repo.Contains("/")) {
 
 $commitSha = ""
 $commitShort = ""
-$tagSha = Get-FirstOutput -Value (Invoke-Git -Arguments @("rev-parse", $Tag))
+$tagSha = Get-FirstOutput -Value (Invoke-Git -Arguments @("rev-parse", "$Tag^{commit}"))
 if (-not [string]::IsNullOrWhiteSpace($tagSha)) {
     $commitSha = $tagSha.Trim()
     if ($commitSha.Length -ge 12) {
