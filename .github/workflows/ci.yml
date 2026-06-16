@@ -5,14 +5,20 @@ on:
     branches: [main]
     paths-ignore:
       - '**.md'
+      - 'LICENSE'
       - '.gitignore'
       - '.gitattributes'
+      - '.github/release-template/**'
+      - '.github/release-extras/**'
   pull_request:
     branches: [main]
     paths-ignore:
       - '**.md'
+      - 'LICENSE'
       - '.gitignore'
       - '.gitattributes'
+      - '.github/release-template/**'
+      - '.github/release-extras/**'
   workflow_dispatch:
 
 concurrency:
@@ -23,10 +29,10 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: build and tests
+  lint:
+    name: lint (changed)
     runs-on: windows-2025-vs2026
-    timeout-minutes: 20
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -39,11 +45,55 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-lint-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            nuget-lint-${{ runner.os }}-
+
+      - name: Run changed lint check
+        shell: pwsh
+        run: |
+          $base = '${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}'
+          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') {
+            $base = 'origin/main'
+          }
+          .\lint.ps1 -Check -ChangedOnly -ChangedBase $base
+
+  build:
+    name: build, tests, and publish smoke
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
       - name: Validate workflow scripts
         shell: pwsh
         run: |
           ./.github/scripts/Test-WorkflowSyntax.ps1
           ./.github/scripts/Test-UpdateChangelog.ps1
+          ./.github/scripts/Test-GenerateReleaseNotes.ps1
+          ./.github/scripts/Test-ReleaseVersionSequence.ps1
+          ./.github/scripts/Test-NightlyBetaPlan.ps1
 
       - name: Restore
         run: dotnet restore VRCInventoryManager.slnx
@@ -68,6 +118,7 @@ jobs:
             -p:PublishReadyToRun=false `
             -p:DebugType=None `
             -p:DebugSymbols=false
+          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit $LASTEXITCODE" }
           $files = @(Get-ChildItem stage/app -File)
           if ($files.Count -ne 1 -or $files[0].Name -ne 'VRCInventoryManager.exe') {
             throw 'Publish output must contain exactly VRCInventoryManager.exe.'

@@ -5,14 +5,14 @@ using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Interop;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using VRCInventoryManager.Core;
 using WpfCursors = System.Windows.Input.Cursors;
 using WpfMessageBox = System.Windows.MessageBox;
-using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager;
 

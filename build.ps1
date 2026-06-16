@@ -26,6 +26,29 @@ function Get-NumericVersion {
     return ($parts[0..3] -join '.')
 }
 
+function Write-IntegrityManifest {
+    param(
+        [Parameter(Mandatory=$true)][string] $ReleaseDir,
+        [Parameter(Mandatory=$true)][string] $BuildVersion
+    )
+
+    $manifestPath = Join-Path $ReleaseDir "VRCInventoryManager-v$BuildVersion.integrity.tsv"
+    $assets = @(Get-ChildItem -LiteralPath $ReleaseDir -File | Where-Object {
+        $_.Name -like "*.zip" -or $_.Name -like "*Setup.exe"
+    } | Sort-Object Name)
+
+    if ($assets.Count -eq 0) {
+        return
+    }
+
+    Set-Content -LiteralPath $manifestPath -Value "name`tsha256`tbytes" -Encoding utf8
+    foreach ($asset in $assets) {
+        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant()
+        Add-Content -LiteralPath $manifestPath -Value "$($asset.Name)`t$hash`t$($asset.Length)" -Encoding utf8
+    }
+    Write-Host "Integrity:   $manifestPath"
+}
+
 $hooksPath = (& git config --get core.hooksPath 2>$null)
 if ($hooksPath -ne ".githooks") {
     & git config core.hooksPath ".githooks"
@@ -118,4 +141,6 @@ if ($Release) {
     } else {
         Write-Host "NSIS not found; installer build skipped."
     }
+
+    Write-IntegrityManifest -ReleaseDir $releaseDir -BuildVersion $Version
 }

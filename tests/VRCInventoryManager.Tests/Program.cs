@@ -7,10 +7,10 @@ using System.Text;
 using System.Text.Json;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using DrawingColor = System.Drawing.Color;
-using MediaColors = System.Windows.Media.Colors;
 using Microsoft.Data.Sqlite;
 using VRCInventoryManager.Core;
+using DrawingColor = System.Drawing.Color;
+using MediaColors = System.Windows.Media.Colors;
 
 List<(string Name, Func<Task> Test)> tests =
 [
