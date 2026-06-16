@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- **release:** Report tagged commit in notes (5f43db0)
+
+### Fixed
 - **release:** Keep beta planner probe optional (1f3a833)
 
 ### Added
