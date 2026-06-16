@@ -55,7 +55,19 @@ jobs:
         run: dotnet run --project tests/VRCInventoryManager.Tests/VRCInventoryManager.Tests.csproj --configuration Release --no-build
 
       - name: Publish app
-        run: dotnet publish src/VRCInventoryManager/VRCInventoryManager.csproj --configuration Release --runtime win-x64 --self-contained true --output stage/app -p:PublishSingleFile=false -p:PublishReadyToRun=false
+        shell: pwsh
+        run: |
+          dotnet publish src/VRCInventoryManager/VRCInventoryManager.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output stage/app `
+            -p:PublishSingleFile=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishReadyToRun=false `
+            -p:DebugType=None `
+            -p:DebugSymbols=false
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v7

@@ -75,10 +75,19 @@ if ($Release) {
         --runtime win-x64 `
         --self-contained true `
         --output $appDir `
-        -p:PublishSingleFile=false `
+        -p:PublishSingleFile=true `
+        -p:EnableCompressionInSingleFile=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:PublishReadyToRun=false `
+        -p:DebugType=None `
+        -p:DebugSymbols=false `
         -p:Version=$numericVersion
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
+
+    $publishedFiles = @(Get-ChildItem -LiteralPath $appDir -File)
+    if ($publishedFiles.Count -ne 1 -or $publishedFiles[0].Name -ne "VRCInventoryManager.exe") {
+        throw "Release publish should produce exactly one executable file."
+    }
 
     $zipPath = Join-Path $releaseDir "VRCInventoryManager-v$Version-win-x64.zip"
     if (Test-Path -LiteralPath $zipPath) {
@@ -86,6 +95,8 @@ if ($Release) {
     }
     Compress-Archive -Path (Join-Path $appDir "*") -DestinationPath $zipPath -CompressionLevel Optimal
     $zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
+    $exeSizeMb = [Math]::Round($publishedFiles[0].Length / 1MB, 2)
+    Write-Host "Release exe: $($publishedFiles[0].FullName) ($exeSizeMb MB)"
     Write-Host "Release zip: $zipPath"
     Write-Host "SHA256:      $zipHash"
 

@@ -16,4 +16,4 @@ The app opens `C:\Users\ADMIN\Pictures\VRChat\Emoji` by default, supports recurs
 .\build.ps1 -Release
 ```
 
-The release build creates a self-contained win-x64 zip under `release\`. If NSIS is installed, it also builds a per-user installer.
+The release build creates a compressed, self-contained, single-exe win-x64 zip under `release\`. If NSIS is installed, it also builds a per-user installer.

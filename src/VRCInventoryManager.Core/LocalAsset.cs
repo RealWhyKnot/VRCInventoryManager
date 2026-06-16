@@ -17,4 +17,6 @@ public sealed record LocalAsset(
         : Length < 1024 * 1024
             ? $"{Length / 1024.0:N1} KB"
             : $"{Length / 1024.0 / 1024.0:N1} MB";
+
+    public string DetailsText => $"{Extension}  {SizeText}  style {AnimationStyle}";
 }

@@ -15,6 +15,7 @@ using VRCInventoryManager.Core;
 List<(string Name, Func<Task> Test)> tests =
 [
     ("scan recursive image files", TestScannerAsync),
+    ("format local asset details", TestLocalAssetDetailsAsync),
     ("parse animation style from file name", TestAnimationStyleAsync),
     ("parse VRCX cookie payload", TestCookieParsingAsync),
     ("load VRCX cookies from sqlite copy", TestCookieProviderSqliteAsync),
@@ -64,6 +65,21 @@ static Task TestScannerAsync()
     {
         Directory.Delete(root, recursive: true);
     }
+}
+
+static Task TestLocalAssetDetailsAsync()
+{
+    LocalAsset asset = new(
+        @"C:\tmp\likeanimationStyle.png",
+        "likeanimationStyle.png",
+        @"C:\tmp",
+        ".png",
+        2048,
+        DateTimeOffset.UnixEpoch);
+
+    AssertEqual("2.0 KB", asset.SizeText, "size text");
+    AssertEqual(".png  2.0 KB  style like", asset.DetailsText, "details text");
+    return Task.CompletedTask;
 }
 
 static Task TestAnimationStyleAsync()

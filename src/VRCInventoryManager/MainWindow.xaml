@@ -82,13 +82,7 @@
                                 <Image Source="{Binding Path}" Stretch="Uniform" />
                             </Border>
                             <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Foreground="#B7BDC8" FontSize="12">
-                                <Run Text="{Binding Extension}" />
-                                <Run Text="  " />
-                                <Run Text="{Binding SizeText}" />
-                                <Run Text="  style " />
-                                <Run Text="{Binding AnimationStyle}" />
-                            </TextBlock>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsText}" Foreground="#B7BDC8" FontSize="12" />
                         </Grid>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
