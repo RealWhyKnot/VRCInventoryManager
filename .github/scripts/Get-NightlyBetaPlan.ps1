@@ -12,12 +12,21 @@ Set-StrictMode -Version Latest
 function Invoke-Git {
     param([Parameter(Mandatory=$true)][string[]] $Arguments, [switch] $AllowFailure)
 
-    $output = & git @Arguments 2>$null
-    if ($LASTEXITCODE -ne 0) {
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & git @Arguments 2>$null
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+
+    if ($exitCode -ne 0) {
         if ($AllowFailure) {
             return $null
         }
-        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+        throw "git $($Arguments -join ' ') failed with exit code $exitCode"
     }
     return @($output)
 }
