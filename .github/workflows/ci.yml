@@ -68,6 +68,10 @@ jobs:
             -p:PublishReadyToRun=false `
             -p:DebugType=None `
             -p:DebugSymbols=false
+          $files = @(Get-ChildItem stage/app -File)
+          if ($files.Count -ne 1 -or $files[0].Name -ne 'VRCInventoryManager.exe') {
+            throw 'Publish output must contain exactly VRCInventoryManager.exe.'
+          }
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v7

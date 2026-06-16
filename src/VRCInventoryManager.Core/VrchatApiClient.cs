@@ -178,6 +178,7 @@ public sealed class VrchatApiClient
         string tag = ReadTag(element, fallbackTag);
         DateTimeOffset? createdAt = null;
         string status = string.Empty;
+        string previewUrl = string.Empty;
         if (element.TryGetProperty("versions", out JsonElement versions) && versions.ValueKind == JsonValueKind.Array)
         {
             foreach (JsonElement version in versions.EnumerateArray())
@@ -192,6 +193,13 @@ public sealed class VrchatApiClient
                 {
                     status = statusElement.GetString() ?? string.Empty;
                 }
+
+                if (version.TryGetProperty("file", out JsonElement fileElement) &&
+                    fileElement.TryGetProperty("url", out JsonElement urlElement) &&
+                    urlElement.ValueKind == JsonValueKind.String)
+                {
+                    previewUrl = urlElement.GetString() ?? string.Empty;
+                }
             }
         }
 
@@ -204,6 +212,7 @@ public sealed class VrchatApiClient
             AnimationStyle = GetString(element, "animationStyle"),
             LoopStyle = GetString(element, "loopStyle"),
             MaskTag = GetString(element, "maskTag"),
+            PreviewUrl = previewUrl,
             Frames = GetInt(element, "frames"),
             FramesOverTime = GetInt(element, "framesOverTime"),
             CreatedAt = createdAt,

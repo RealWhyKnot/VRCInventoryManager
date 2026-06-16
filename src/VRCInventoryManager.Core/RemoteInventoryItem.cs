@@ -9,6 +9,7 @@ public sealed record RemoteInventoryItem
     public string AnimationStyle { get; init; } = string.Empty;
     public string LoopStyle { get; init; } = string.Empty;
     public string MaskTag { get; init; } = string.Empty;
+    public string PreviewUrl { get; init; } = string.Empty;
     public int? Frames { get; init; }
     public int? FramesOverTime { get; init; }
     public DateTimeOffset? CreatedAt { get; init; }

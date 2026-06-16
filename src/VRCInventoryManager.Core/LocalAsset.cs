@@ -12,6 +12,16 @@ public sealed record LocalAsset(
 
     public string AnimationStyle => VRCInventoryManager.Core.AnimationStyle.FromFileName(Name);
 
+    public string Bucket
+    {
+        get
+        {
+            string directory = Directory.TrimEnd(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar);
+            string bucket = System.IO.Path.GetFileName(directory);
+            return string.IsNullOrWhiteSpace(bucket) ? "Unfiled" : bucket;
+        }
+    }
+
     public string SizeText => Length < 1024
         ? $"{Length} B"
         : Length < 1024 * 1024

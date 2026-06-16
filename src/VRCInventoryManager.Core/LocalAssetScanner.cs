@@ -13,7 +13,9 @@ public sealed class LocalAssetScanner
         ".tiff"
     };
 
-    public IReadOnlyList<LocalAsset> Scan(string root)
+    public IReadOnlyList<LocalAsset> Scan(
+        string root,
+        IReadOnlySet<string>? excludedTopLevelDirectories = null)
     {
         if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
         {
@@ -21,7 +23,7 @@ public sealed class LocalAssetScanner
         }
 
         List<LocalAsset> assets = [];
-        foreach (string file in EnumerateFiles(root))
+        foreach (string file in EnumerateFiles(root, excludedTopLevelDirectories))
         {
             string extension = Path.GetExtension(file);
             if (!SupportedExtensions.Contains(extension))
@@ -54,10 +56,13 @@ public sealed class LocalAssetScanner
             .ToArray();
     }
 
-    private static IEnumerable<string> EnumerateFiles(string root)
+    private static IEnumerable<string> EnumerateFiles(
+        string root,
+        IReadOnlySet<string>? excludedTopLevelDirectories)
     {
         Stack<string> pending = new();
-        pending.Push(root);
+        string normalizedRoot = NormalizeDirectory(root);
+        pending.Push(normalizedRoot);
 
         while (pending.Count > 0)
         {
@@ -97,8 +102,35 @@ public sealed class LocalAssetScanner
 
             foreach (string child in children)
             {
+                if (IsExcludedTopLevelDirectory(normalizedRoot, directory, child, excludedTopLevelDirectories))
+                {
+                    continue;
+                }
+
                 pending.Push(child);
             }
         }
     }
+
+    private static bool IsExcludedTopLevelDirectory(
+        string normalizedRoot,
+        string directory,
+        string child,
+        IReadOnlySet<string>? excludedTopLevelDirectories)
+    {
+        if (excludedTopLevelDirectories is null || excludedTopLevelDirectories.Count == 0)
+        {
+            return false;
+        }
+
+        if (!string.Equals(NormalizeDirectory(directory), normalizedRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return excludedTopLevelDirectories.Contains(Path.GetFileName(child));
+    }
+
+    private static string NormalizeDirectory(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 }

@@ -16,6 +16,7 @@ List<(string Name, Func<Task> Test)> tests =
 [
     ("scan recursive image files", TestScannerAsync),
     ("format local asset details", TestLocalAssetDetailsAsync),
+    ("write debug log file", TestDebugLogAsync),
     ("parse animation style from file name", TestAnimationStyleAsync),
     ("parse VRCX cookie payload", TestCookieParsingAsync),
     ("load VRCX cookies from sqlite copy", TestCookieProviderSqliteAsync),
@@ -49,16 +50,47 @@ static Task TestScannerAsync()
     try
     {
         Directory.CreateDirectory(Path.Combine(root, "nested"));
+        Directory.CreateDirectory(Path.Combine(root, "Emoji"));
         WritePng(Path.Combine(root, "first.png"), DrawingColor.Red);
         WritePng(Path.Combine(root, "nested", "second.jpg"), DrawingColor.Blue);
+        WritePng(Path.Combine(root, "Emoji", "skip.png"), DrawingColor.Green);
         File.WriteAllText(Path.Combine(root, "notes.txt"), "ignore");
 
         LocalAssetScanner scanner = new();
         IReadOnlyList<LocalAsset> assets = scanner.Scan(root);
 
-        AssertEqual(2, assets.Count, "asset count");
+        AssertEqual(3, assets.Count, "asset count");
         AssertTrue(assets.Any(asset => asset.Name == "first.png"), "first image found");
         AssertTrue(assets.Any(asset => asset.Name == "second.jpg"), "nested image found");
+        AssertTrue(assets.Any(asset => asset.Bucket == "nested"), "bucket from directory");
+
+        IReadOnlyList<LocalAsset> filtered = scanner.Scan(root, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Emoji" });
+        AssertEqual(2, filtered.Count, "excluded top-level folder");
+        return Task.CompletedTask;
+    }
+    finally
+    {
+        Directory.Delete(root, recursive: true);
+    }
+}
+
+static Task TestDebugLogAsync()
+{
+    string root = CreateTempDirectory();
+    try
+    {
+        string processPath = Path.Combine(root, "VRCInventoryManager.exe");
+        string expectedPath = Path.Combine(root, "VRCInventoryManager.debug.log");
+        AssertEqual(expectedPath, DebugLog.GetExecutableLogPath(processPath), "exe log path");
+
+        using (DebugLog log = DebugLog.TryCreate(expectedPath, reset: true) ?? throw new InvalidOperationException("Could not create debug log."))
+        {
+            log.Info("manual entry");
+        }
+
+        string content = File.ReadAllText(expectedPath);
+        AssertTrue(content.Contains("manual entry", StringComparison.Ordinal), "log entry written");
+        AssertTrue(content.Contains("[INFO]", StringComparison.Ordinal), "log level written");
         return Task.CompletedTask;
     }
     finally
@@ -79,6 +111,7 @@ static Task TestLocalAssetDetailsAsync()
 
     AssertEqual("2.0 KB", asset.SizeText, "size text");
     AssertEqual(".png  2.0 KB  style like", asset.DetailsText, "details text");
+    AssertEqual("tmp", asset.Bucket, "bucket");
     return Task.CompletedTask;
 }
 
@@ -203,6 +236,7 @@ static async Task TestVrchatApiClientAsync()
     RemoteInventorySnapshot snapshot = await client.GetInventorySnapshotAsync();
     AssertEqual(1, snapshot.StickerCount, "sticker count");
     AssertEqual(2, snapshot.EmojiCount, "emoji count");
+    AssertEqual("https://files.example/file_emoji.png", snapshot.AllItems.Single(item => item.Id == "file_emoji").PreviewUrl, "preview url");
 
     UploadResult upload = await client.UploadStaticEmojiAsync(pngPath, "like");
     AssertEqual("file_uploaded", upload.Id, "upload id");
@@ -357,17 +391,17 @@ sealed class FakeHttpHandler : HttpMessageHandler
         {
             if (query.Contains("tag=sticker", StringComparison.Ordinal))
             {
-                return Json(HttpStatusCode.OK, """[{"id":"file_sticker","tags":["sticker"],"animationStyle":"stop","versions":[{"created_at":"2026-06-13T00:00:00Z","status":"complete"}]}]""");
+                return Json(HttpStatusCode.OK, """[{"id":"file_sticker","tags":["sticker"],"animationStyle":"stop","versions":[{"created_at":"2026-06-13T00:00:00Z","status":"complete","file":{"url":"https://files.example/file_sticker.png"}}]}]""");
             }
 
             if (query.Contains("tag=emojianimated", StringComparison.Ordinal))
             {
-                return Json(HttpStatusCode.OK, """[{"id":"file_anim","tags":["emojianimated"],"animationStyle":"spin","frames":12,"framesOverTime":24,"versions":[{"created_at":"2026-06-13T00:00:00Z","status":"complete"}]}]""");
+                return Json(HttpStatusCode.OK, """[{"id":"file_anim","tags":["emojianimated"],"animationStyle":"spin","frames":12,"framesOverTime":24,"versions":[{"created_at":"2026-06-13T00:00:00Z","status":"complete","file":{"url":"https://files.example/file_anim.png"}}]}]""");
             }
 
             if (query.Contains("tag=emoji", StringComparison.Ordinal))
             {
-                return Json(HttpStatusCode.OK, """[{"id":"file_emoji","tags":["emoji"],"animationStyle":"like","versions":[{"created_at":"2026-06-13T00:00:00Z","status":"complete"}]}]""");
+                return Json(HttpStatusCode.OK, """[{"id":"file_emoji","tags":["emoji"],"animationStyle":"like","versions":[{"created_at":"2026-06-13T00:00:00Z","status":"complete","file":{"url":"https://files.example/file_emoji.png"}}]}]""");
             }
         }
 
