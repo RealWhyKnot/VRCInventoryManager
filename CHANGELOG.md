@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## v2026.6.17.0 - 2026-06-17
+
 ### Fixed
 - **upload:** Preserve image payload semantics (95e25dc)
 
