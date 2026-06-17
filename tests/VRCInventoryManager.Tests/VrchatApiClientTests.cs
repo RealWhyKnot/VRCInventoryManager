@@ -15,7 +15,9 @@ internal static class VrchatApiClientTests
         try
         {
             string pngPath = Path.Combine(root, "local_likeanimationStyle.png");
+            string animatedPngPath = Path.Combine(root, "local_stopanimationStyle_64frames_24fps_pingpongloopStyle.png");
             TestFiles.WritePng(pngPath, DrawingColor.Green);
+            TestFiles.WritePng(animatedPngPath, DrawingColor.Blue);
 
             FakeHttpHandler handler = new();
             HttpClient httpClient = new(handler)
@@ -33,7 +35,7 @@ internal static class VrchatApiClientTests
 
             UploadResult upload = await client.UploadStaticEmojiAsync(pngPath, "like");
             TestAssert.Equal("file_uploaded", upload.Id, "upload id");
-            UploadResult animatedUpload = await client.UploadAnimatedEmojiSpriteSheetAsync(pngPath, "stop", 64, 24);
+            UploadResult animatedUpload = await client.UploadAnimatedEmojiSpriteSheetAsync(animatedPngPath, "stop", 64, 24);
             TestAssert.Equal("file_uploaded", animatedUpload.Id, "animated upload id");
             await client.DeleteFileAsync("file_uploaded");
 
@@ -43,15 +45,52 @@ internal static class VrchatApiClientTests
             TestAssert.True(uploadRequest.Body.Contains("name=tag", StringComparison.Ordinal), "multipart has tag name");
             TestAssert.True(uploadRequest.Body.Contains("emoji", StringComparison.Ordinal), "multipart has emoji tag");
             TestAssert.True(uploadRequest.Body.Contains("name=animationStyle", StringComparison.Ordinal), "multipart has animation style");
+            TestAssert.False(uploadRequest.Body.Contains("name=frames", StringComparison.Ordinal), "static multipart has no frame count");
+            TestAssert.False(uploadRequest.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "static multipart has no fps");
+            TestAssert.False(uploadRequest.Body.Contains("name=loopStyle", StringComparison.Ordinal), "static multipart has no loop style");
             CapturedRequest animatedUploadRequest = uploadRequests[1];
             TestAssert.True(animatedUploadRequest.Body.Contains("emojianimated", StringComparison.Ordinal), "multipart has animated emoji tag");
             TestAssert.True(animatedUploadRequest.Body.Contains("name=frames", StringComparison.Ordinal), "multipart has frame count");
             TestAssert.True(animatedUploadRequest.Body.Contains("64", StringComparison.Ordinal), "multipart has frame count value");
             TestAssert.True(animatedUploadRequest.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "multipart has fps");
             TestAssert.True(animatedUploadRequest.Body.Contains("24", StringComparison.Ordinal), "multipart has fps value");
+            TestAssert.True(animatedUploadRequest.Body.Contains("name=loopStyle", StringComparison.Ordinal), "multipart has loop style");
+            TestAssert.True(animatedUploadRequest.Body.Contains("pingpong", StringComparison.Ordinal), "multipart has loop style value");
             TestAssert.True(uploadRequest.Headers.TryGetValue("Cookie", out string? cookieHeader), "cookie header present");
             TestAssert.Equal("auth=auth_cookie; twoFactorAuth=two_factor_cookie", cookieHeader, "cookie header");
             TestAssert.True(handler.Requests.Any(request => request.Method == HttpMethod.Delete && request.Uri.AbsolutePath.EndsWith("/file/file_uploaded", StringComparison.Ordinal)), "delete path");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    public static async Task RejectAnimatedSourcesForStaticEmojiUploadsAsync()
+    {
+        string root = TestFiles.CreateTempDirectory();
+        try
+        {
+            string gifPath = Path.Combine(root, "animated_stopanimationStyle.gif");
+            string spriteSheetPath = Path.Combine(root, "sprite_stopanimationStyle_64frames_24fps.png");
+            TestFiles.WriteAnimatedGif(gifPath);
+            TestFiles.WritePng(spriteSheetPath, DrawingColor.Purple);
+
+            FakeHttpHandler handler = new();
+            HttpClient httpClient = new(handler)
+            {
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+            };
+            VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
+
+            await TestAssert.ThrowsAsync<InvalidOperationException>(
+                () => client.UploadStaticEmojiAsync(gifPath, "stop"),
+                "static GIF upload rejected");
+            await TestAssert.ThrowsAsync<InvalidOperationException>(
+                () => client.UploadStaticEmojiAsync(spriteSheetPath, "stop"),
+                "static sprite sheet upload rejected");
+
+            TestAssert.Equal(0, handler.Requests.Count, "guard rejects before HTTP");
         }
         finally
         {

@@ -7,6 +7,7 @@ TestCase[] tests =
     new("write debug log file", LocalAssetTests.WriteDebugLogFileAsync),
     new("parse animation style from file name", LocalAssetTests.ParseAnimationStyleFromFileNameAsync),
     new("parse local sprite sheet metadata", LocalAssetTests.ParseLocalSpriteSheetMetadataAsync),
+    new("classify emoji upload intent", LocalAssetTests.ClassifyEmojiUploadIntentAsync),
     new("build folder tree with rollup counts", FolderTreeBuilderTests.BuildFolderTreeWithRollupCountsAsync),
     new("match local assets by folder and query", LocalAssetFilterTests.MatchFolderSubfoldersAndQueryAsync),
     new("resolve configured VRCX and VRChat paths", VrcxPathResolverTests.ResolveConfiguredVrcxAndVrchatPathsAsync),
@@ -22,7 +23,8 @@ TestCase[] tests =
     new("reject invalid sprite sheet metadata", SpriteSheetFrameExtractorTests.RejectInvalidSpriteSheetMetadataAsync),
     new("convert animated GIF to sprite sheet", GifSpriteSheetConverterTests.ConvertAnimatedGifToSpriteSheetAsync),
     new("use power-of-two GIF sprite sheet grid", GifSpriteSheetConverterTests.UsePowerOfTwoSpriteSheetGridAsync),
-    new("construct VRChat API requests", VrchatApiClientTests.ConstructRequestsAsync)
+    new("construct VRChat API requests", VrchatApiClientTests.ConstructRequestsAsync),
+    new("reject animated sources for static emoji uploads", VrchatApiClientTests.RejectAnimatedSourcesForStaticEmojiUploadsAsync)
 ];
 
 int failures = await TestRunner.RunAsync(tests);

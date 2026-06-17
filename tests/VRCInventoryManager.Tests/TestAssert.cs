@@ -34,4 +34,19 @@ internal static class TestAssert
 
         throw new InvalidOperationException($"{label}: expected {typeof(TException).Name}.");
     }
+
+    public static async Task ThrowsAsync<TException>(Func<Task> action, string label)
+        where TException : Exception
+    {
+        try
+        {
+            await action();
+        }
+        catch (TException)
+        {
+            return;
+        }
+
+        throw new InvalidOperationException($"{label}: expected {typeof(TException).Name}.");
+    }
 }

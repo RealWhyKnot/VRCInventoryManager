@@ -91,8 +91,8 @@ internal static class LocalAssetTests
     public static Task ParseLocalSpriteSheetMetadataAsync()
     {
         LocalAsset asset = new(
-            @"C:\tmp\avatar_inv_123_stopanimationStyle_64frames_24fps_linearloopStyle.png",
-            "avatar_inv_123_stopanimationStyle_64frames_24fps_linearloopStyle.png",
+            @"C:\tmp\avatar_inv_123_stopanimationStyle_64frames_24fps_pingpongloopStyle.png",
+            "avatar_inv_123_stopanimationStyle_64frames_24fps_pingpongloopStyle.png",
             @"C:\tmp",
             ".png",
             4096,
@@ -101,11 +101,53 @@ internal static class LocalAssetTests
         TestAssert.Equal(64, asset.Frames, "frames");
         TestAssert.Equal(24, asset.FramesOverTime, "fps");
         TestAssert.True(asset.HasSpriteSheetAnimation, "sprite sheet animation");
+        TestAssert.Equal("pingpong", asset.LoopStyle, "loop style");
         TestAssert.True(asset.DetailsText.Contains("64 frames @ 24 fps", StringComparison.Ordinal), "details includes animation");
 
         LocalAsset still = asset with { Name = "avatar_stopanimationStyle.png" };
         TestAssert.Equal(null, still.Frames, "still frames");
         TestAssert.False(still.HasSpriteSheetAnimation, "still image");
+        return Task.CompletedTask;
+    }
+
+    public static Task ClassifyEmojiUploadIntentAsync()
+    {
+        LocalAsset png = new(
+            @"C:\tmp\plain_stopanimationStyle.png",
+            "plain_stopanimationStyle.png",
+            @"C:\tmp",
+            ".png",
+            2048,
+            DateTimeOffset.UnixEpoch);
+        TestAssert.True(png.CanUploadAsStaticEmoji, "plain png static upload");
+        TestAssert.False(png.CanUploadAsAnimatedEmoji, "plain png animated upload");
+        TestAssert.Equal("linear", png.LoopStyle, "default loop style");
+
+        LocalAsset gif = png with
+        {
+            Path = @"C:\tmp\animated_stopanimationStyle.gif",
+            Name = "animated_stopanimationStyle.gif",
+            Extension = ".gif"
+        };
+        TestAssert.False(gif.CanUploadAsStaticEmoji, "gif static upload denied");
+        TestAssert.True(gif.CanUploadAsAnimatedEmoji, "gif animated upload allowed");
+
+        LocalAsset spriteSheet = png with
+        {
+            Path = @"C:\tmp\sheet_stopanimationStyle_64frames_24fps_linearloopStyle.png",
+            Name = "sheet_stopanimationStyle_64frames_24fps_linearloopStyle.png"
+        };
+        TestAssert.False(spriteSheet.CanUploadAsStaticEmoji, "sprite sheet static upload denied");
+        TestAssert.True(spriteSheet.CanUploadAsAnimatedEmoji, "sprite sheet animated upload allowed");
+
+        LocalAsset missingFps = png with { Name = "sheet_stopanimationStyle_64frames.png" };
+        TestAssert.True(missingFps.CanUploadAsStaticEmoji, "missing fps static upload");
+        TestAssert.False(missingFps.CanUploadAsAnimatedEmoji, "missing fps animated upload");
+
+        LocalAsset invalidFrameCount = png with { Name = "sheet_stopanimationStyle_1frames_24fps.png" };
+        TestAssert.True(invalidFrameCount.CanUploadAsStaticEmoji, "one-frame static upload");
+        TestAssert.False(invalidFrameCount.CanUploadAsAnimatedEmoji, "one-frame animated upload");
+
         return Task.CompletedTask;
     }
 }

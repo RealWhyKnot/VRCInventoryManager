@@ -70,13 +70,18 @@ public sealed class VrchatApiClient
     public async Task<UploadResult> UploadStickerAsync(string path, CancellationToken cancellationToken = default)
     {
         byte[] bytes = ImagePayloadFactory.GetPngPayload(path);
-        return await UploadImageAsync(bytes, VrchatFileTags.Sticker, null, null, null, cancellationToken);
+        return await UploadImageAsync(bytes, VrchatFileTags.Sticker, null, null, null, null, cancellationToken);
     }
 
     public async Task<UploadResult> UploadStaticEmojiAsync(string path, string animationStyle, CancellationToken cancellationToken = default)
     {
+        if (!LocalAsset.CanUploadPathAsStaticEmoji(path))
+        {
+            throw new InvalidOperationException("Animated emoji sources must be uploaded with Upload Animated Emoji.");
+        }
+
         byte[] bytes = ImagePayloadFactory.GetPngPayload(path);
-        return await UploadImageAsync(bytes, VrchatFileTags.Emoji, animationStyle, null, null, cancellationToken);
+        return await UploadImageAsync(bytes, VrchatFileTags.Emoji, animationStyle, null, null, null, cancellationToken);
     }
 
     public async Task<UploadResult> UploadAnimatedEmojiAsync(string gifPath, string animationStyle, CancellationToken cancellationToken = default)
@@ -86,6 +91,7 @@ public sealed class VrchatApiClient
             spriteSheet.PngBytes,
             VrchatFileTags.AnimatedEmoji,
             animationStyle,
+            LoopStyle.FromFileName(Path.GetFileName(gifPath)),
             spriteSheet.Frames,
             spriteSheet.FramesOverTime,
             cancellationToken);
@@ -113,6 +119,7 @@ public sealed class VrchatApiClient
             bytes,
             VrchatFileTags.AnimatedEmoji,
             animationStyle,
+            LoopStyle.FromFileName(Path.GetFileName(path)),
             Math.Min(frames, GifSpriteSheetConverter.MaxFrames),
             Math.Clamp(framesOverTime, 1, GifSpriteSheetConverter.MaxFramesPerSecond),
             cancellationToken);
@@ -133,6 +140,7 @@ public sealed class VrchatApiClient
         byte[] pngBytes,
         string tag,
         string? animationStyle,
+        string? loopStyle,
         int? frames,
         int? framesOverTime,
         CancellationToken cancellationToken)
@@ -153,6 +161,11 @@ public sealed class VrchatApiClient
         if (framesOverTime.HasValue)
         {
             content.Add(new StringContent(framesOverTime.Value.ToString()), "framesOverTime");
+        }
+
+        if (!string.IsNullOrWhiteSpace(loopStyle))
+        {
+            content.Add(new StringContent(loopStyle), "loopStyle");
         }
 
         ByteArrayContent fileContent = new(pngBytes);
