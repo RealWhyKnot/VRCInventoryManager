@@ -160,6 +160,18 @@ internal static class LocalAssetTests
         TestAssert.True(invalidFrameCount.CanUploadAsStaticEmoji, "one-frame static upload");
         TestAssert.False(invalidFrameCount.CanUploadAsAnimatedEmoji, "one-frame animated upload");
 
+        LocalAsset jpegWithSpriteName = png with
+        {
+            Path = @"C:\tmp\sheet_stopanimationStyle_64frames_24fps.jpg",
+            Name = "sheet_stopanimationStyle_64frames_24fps.jpg",
+            Extension = ".jpg"
+        };
+        TestAssert.True(jpegWithSpriteName.CanUploadAsStaticEmoji, "jpeg sprite name static upload");
+        TestAssert.False(jpegWithSpriteName.CanUploadAsAnimatedEmoji, "jpeg sprite name animated upload");
+        TestAssert.False(
+            LocalAsset.TryGetSpriteSheetAnimationMetadata(jpegWithSpriteName.Path, out _, out _),
+            "jpeg sprite metadata not parsed");
+
         return Task.CompletedTask;
     }
 }

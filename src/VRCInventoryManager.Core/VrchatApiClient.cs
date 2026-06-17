@@ -124,18 +124,23 @@ public sealed class VrchatApiClient
             throw new ArgumentOutOfRangeException(nameof(frames), "Animated emoji upload requires at least two frames.");
         }
 
+        if (frames > GifSpriteSheetConverter.MaxFrames)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frames), "Animated emoji upload supports at most 64 frames.");
+        }
+
         if (framesOverTime <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(framesOverTime), "Animated emoji upload requires a positive frame rate.");
         }
 
-        byte[] bytes = ImagePayloadFactory.GetPngPayload(path);
+        byte[] bytes = ImagePayloadFactory.GetSpriteSheetPngPayload(path);
         return await UploadImageAsync(
             bytes,
             VrchatFileTags.AnimatedEmoji,
             animationStyle,
             LoopStyle.FromFileName(Path.GetFileName(path)),
-            Math.Min(frames, GifSpriteSheetConverter.MaxFrames),
+            frames,
             Math.Clamp(framesOverTime, 1, GifSpriteSheetConverter.MaxFramesPerSecond),
             cancellationToken);
     }

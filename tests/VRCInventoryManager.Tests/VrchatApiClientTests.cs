@@ -98,6 +98,38 @@ internal static class VrchatApiClientTests
         }
     }
 
+    public static async Task RejectInvalidSpriteSheetUploadsAsync()
+    {
+        string root = TestFiles.CreateTempDirectory();
+        try
+        {
+            string nonSquarePath = Path.Combine(root, "sprite_stopanimationStyle_4frames_20fps.png");
+            string tooManyFramesPath = Path.Combine(root, "sprite_stopanimationStyle_65frames_20fps.png");
+            TestFiles.WritePng(nonSquarePath, 128, 64, DrawingColor.Purple);
+            TestFiles.WritePng(tooManyFramesPath, 128, 128, DrawingColor.Purple);
+
+            FakeHttpHandler handler = new();
+            HttpClient httpClient = new(handler)
+            {
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+            };
+            VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
+
+            await TestAssert.ThrowsAsync<InvalidOperationException>(
+                () => client.UploadAnimatedEmojiSpriteSheetAsync(nonSquarePath, "stop", 4, 20),
+                "non-square sprite sheet upload rejected");
+            await TestAssert.ThrowsAsync<ArgumentOutOfRangeException>(
+                () => client.UploadAnimatedEmojiSpriteSheetAsync(tooManyFramesPath, "stop", 65, 20),
+                "too many sprite sheet frames rejected");
+
+            TestAssert.Equal(0, handler.Requests.Count, "guard rejects invalid sprite sheets before HTTP");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     public static async Task UploadGifEmojiThroughAnimatedAutoRouteAsync()
     {
         string root = TestFiles.CreateTempDirectory();

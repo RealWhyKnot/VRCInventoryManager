@@ -15,17 +15,23 @@ TestCase[] tests =
     new("resolve VRCX database directory override", VrcxPathResolverTests.ResolveVrcxDatabaseDirectoryOverrideAsync),
     new("parse VRCX cookie payload", VrcxCookieTests.ParseCookiePayloadAsync),
     new("load VRCX cookies from sqlite copy", VrcxCookieTests.LoadCookiesFromSqliteCopyAsync),
-    new("square pad non-square PNG payload", ImagePayloadFactoryTests.SquarePadNonSquarePngAsync),
-    new("square encode JPEG payload", ImagePayloadFactoryTests.SquareEncodeJpegAsync),
+    new("preserve upload-ready static PNG payload", ImagePayloadFactoryTests.PreserveUploadReadyStaticPngAsync),
+    new("convert JPEG payload to PNG without square padding", ImagePayloadFactoryTests.ConvertJpegPayloadToPngWithoutSquarePaddingAsync),
+    new("downscale oversized static PNG payload", ImagePayloadFactoryTests.DownscaleOversizedStaticPayloadAsync),
+    new("preserve square sprite sheet PNG payload", ImagePayloadFactoryTests.PreserveSquareSpriteSheetPngAsync),
+    new("reject non-square sprite sheet PNG payload", ImagePayloadFactoryTests.RejectNonSquareSpriteSheetPngAsync),
     new("format remote summary without missing style", RemoteInventoryItemTests.FormatSummaryWithoutMissingStyleAsync),
     new("extract sprite sheet frames in row-major order", SpriteSheetFrameExtractorTests.ExtractSpriteSheetFramesInRowMajorOrderAsync),
     new("use power-of-two grid for sparse sprite sheets", SpriteSheetFrameExtractorTests.UsePowerOfTwoGridForSparseSpriteSheetsAsync),
     new("reject invalid sprite sheet metadata", SpriteSheetFrameExtractorTests.RejectInvalidSpriteSheetMetadataAsync),
     new("convert animated GIF to sprite sheet", GifSpriteSheetConverterTests.ConvertAnimatedGifToSpriteSheetAsync),
     new("use power-of-two GIF sprite sheet grid", GifSpriteSheetConverterTests.UsePowerOfTwoSpriteSheetGridAsync),
+    new("preserve GIF duration when downsampling", GifSpriteSheetConverterTests.PreserveDurationWhenDownsamplingGifAsync),
+    new("convert optimized GIF using composited frames", GifSpriteSheetConverterTests.ConvertOptimizedGifUsingCompositedFramesAsync),
     new("construct VRChat API requests", VrchatApiClientTests.ConstructRequestsAsync),
     new("upload GIF emoji through animated auto route", VrchatApiClientTests.UploadGifEmojiThroughAnimatedAutoRouteAsync),
-    new("reject animated sources for static emoji uploads", VrchatApiClientTests.RejectAnimatedSourcesForStaticEmojiUploadsAsync)
+    new("reject animated sources for static emoji uploads", VrchatApiClientTests.RejectAnimatedSourcesForStaticEmojiUploadsAsync),
+    new("reject invalid sprite sheet uploads", VrchatApiClientTests.RejectInvalidSpriteSheetUploadsAsync)
 ];
 
 int failures = await TestRunner.RunAsync(tests);

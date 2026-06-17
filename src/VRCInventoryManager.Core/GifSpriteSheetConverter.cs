@@ -1,6 +1,6 @@
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 
 namespace VRCInventoryManager.Core;
 
@@ -9,44 +9,47 @@ public sealed class GifSpriteSheetConverter
     public const int DefaultCanvasSize = 1024;
     public const int MaxFrames = 64;
     public const int MaxFramesPerSecond = 64;
+    private const int PropertyTagFrameDelay = 0x5100;
+    private const int DefaultFrameDelayHundredths = 10;
 
     public SpriteSheetResult Convert(string gifPath, int canvasSize = DefaultCanvasSize)
     {
-        GifBitmapDecoder decoder = new(
-            new Uri(gifPath, UriKind.Absolute),
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad);
+        using Image gif = Image.FromFile(gifPath);
+        if (gif.FrameDimensionsList.Length == 0)
+        {
+            throw new InvalidOperationException("GIF did not contain frame dimensions.");
+        }
 
-        int sourceFrameCount = decoder.Frames.Count;
+        FrameDimension frameDimension = new(gif.FrameDimensionsList[0]);
+        int sourceFrameCount = gif.GetFrameCount(frameDimension);
         if (sourceFrameCount < 2)
         {
             throw new InvalidOperationException("Animated emoji upload requires a GIF with at least two frames.");
         }
 
+        int[] frameDelays = ReadFrameDelays(gif, sourceFrameCount);
         int outputFrameCount = Math.Clamp(sourceFrameCount, 2, MaxFrames);
         int[] frameIndexes = ChooseFrameIndexes(sourceFrameCount, outputFrameCount);
-        int framesPerSecond = EstimateFramesPerSecond(decoder.Frames, frameIndexes);
+        int framesPerSecond = EstimateFramesPerSecond(frameDelays, outputFrameCount);
         int grid = SpriteSheetFrameExtractor.CalculateGrid(outputFrameCount);
         int cellSize = canvasSize / grid;
 
-        DrawingVisual visual = new();
-        using (DrawingContext context = visual.RenderOpen())
+        using Bitmap sheet = new(canvasSize, canvasSize, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(sheet))
         {
-            context.DrawRectangle(Brushes.Transparent, null, new Rect(0, 0, canvasSize, canvasSize));
+            ConfigureGraphics(graphics);
+            graphics.Clear(Color.Transparent);
             for (int i = 0; i < frameIndexes.Length; i++)
             {
-                BitmapFrame frame = decoder.Frames[frameIndexes[i]];
-                Rect destination = GetCenteredDestination(frame.PixelWidth, frame.PixelHeight, i, grid, cellSize);
-                context.DrawImage(frame, destination);
+                gif.SelectActiveFrame(frameDimension, frameIndexes[i]);
+                using Bitmap frame = CopySelectedFrame(gif);
+                RectangleF destination = GetCenteredDestination(frame.Width, frame.Height, i, grid, cellSize);
+                graphics.DrawImage(frame, destination);
             }
         }
 
-        RenderTargetBitmap render = new(canvasSize, canvasSize, 96, 96, PixelFormats.Pbgra32);
-        render.Render(visual);
-        PngBitmapEncoder encoder = new();
-        encoder.Frames.Add(BitmapFrame.Create(render));
         using MemoryStream stream = new();
-        encoder.Save(stream);
+        sheet.Save(stream, ImageFormat.Png);
         return new SpriteSheetResult(stream.ToArray(), outputFrameCount, framesPerSecond, canvasSize, grid, cellSize);
     }
 
@@ -66,7 +69,7 @@ public sealed class GifSpriteSheetConverter
         return indexes;
     }
 
-    private static Rect GetCenteredDestination(int width, int height, int frameIndex, int grid, int cellSize)
+    private static RectangleF GetCenteredDestination(int width, int height, int frameIndex, int grid, int cellSize)
     {
         int column = frameIndex % grid;
         int row = frameIndex / grid;
@@ -75,47 +78,62 @@ public sealed class GifSpriteSheetConverter
         double scaledHeight = Math.Max(1, Math.Round(height * scale));
         double x = column * cellSize + (cellSize - scaledWidth) / 2;
         double y = row * cellSize + (cellSize - scaledHeight) / 2;
-        return new Rect(x, y, scaledWidth, scaledHeight);
+        return new RectangleF((float)x, (float)y, (float)scaledWidth, (float)scaledHeight);
     }
 
-    private static int EstimateFramesPerSecond(IReadOnlyList<BitmapFrame> frames, IReadOnlyList<int> selectedFrames)
+    private static int EstimateFramesPerSecond(IReadOnlyList<int> frameDelays, int outputFrameCount)
     {
-        double averageDelay = selectedFrames
-            .Select(index => index < frames.Count ? ReadFrameDelay(frames[index]) : 0)
-            .Where(delay => delay > 0)
-            .DefaultIfEmpty(4)
-            .Average();
-
-        int fps = (int)Math.Round(100.0 / averageDelay);
+        double durationSeconds = frameDelays
+            .Select(delay => delay > 0 ? delay : DefaultFrameDelayHundredths)
+            .Sum() / 100.0;
+        int fps = (int)Math.Round(outputFrameCount / Math.Max(durationSeconds, 0.01));
         return Math.Clamp(fps, 1, MaxFramesPerSecond);
     }
 
-    private static int ReadFrameDelay(BitmapFrame frame)
+    private static int[] ReadFrameDelays(Image image, int frameCount)
     {
-        if (frame.Metadata is not BitmapMetadata metadata)
-        {
-            return 0;
-        }
-
+        int[] delays = Enumerable.Repeat(DefaultFrameDelayHundredths, frameCount).ToArray();
         try
         {
-            object value = metadata.GetQuery("/grctlext/Delay");
-            return value switch
+            PropertyItem? item = image.GetPropertyItem(PropertyTagFrameDelay);
+            byte[]? values = item?.Value;
+            if (values is null)
             {
-                byte b => b,
-                ushort u => u,
-                short s => s,
-                int i => i,
-                _ => 0
-            };
+                return delays;
+            }
+
+            for (int i = 0; i < frameCount && i * 4 + 3 < values.Length; i++)
+            {
+                int delay = BitConverter.ToInt32(values, i * 4);
+                if (delay > 0)
+                {
+                    delays[i] = delay;
+                }
+            }
         }
         catch (ArgumentException)
         {
-            return 0;
         }
-        catch (NotSupportedException)
-        {
-            return 0;
-        }
+
+        return delays;
+    }
+
+    private static Bitmap CopySelectedFrame(Image gif)
+    {
+        Bitmap frame = new(gif.Width, gif.Height, PixelFormat.Format32bppArgb);
+        using Graphics graphics = Graphics.FromImage(frame);
+        ConfigureGraphics(graphics);
+        graphics.Clear(Color.Transparent);
+        graphics.DrawImage(gif, 0, 0, gif.Width, gif.Height);
+        return frame;
+    }
+
+    private static void ConfigureGraphics(Graphics graphics)
+    {
+        graphics.CompositingMode = CompositingMode.SourceOver;
+        graphics.CompositingQuality = CompositingQuality.HighQuality;
+        graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        graphics.SmoothingMode = SmoothingMode.HighQuality;
     }
 }

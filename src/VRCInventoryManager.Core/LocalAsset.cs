@@ -83,11 +83,14 @@ public sealed record LocalAsset(
     {
         frames = ReadIntMetadata(name, "frames").GetValueOrDefault();
         framesOverTime = ReadIntMetadata(name, "fps").GetValueOrDefault();
-        return !IsGifExtension(extension) && frames > 1 && framesOverTime > 0;
+        return IsPngExtension(extension) && frames > 1 && framesOverTime > 0;
     }
 
     private static bool IsGifExtension(string extension) =>
         string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPngExtension(string extension) =>
+        string.Equals(extension, ".png", StringComparison.OrdinalIgnoreCase);
 
     private int? ReadIntMetadata(string suffix) => ReadIntMetadata(Name, suffix);
 

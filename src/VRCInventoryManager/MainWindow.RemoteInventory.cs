@@ -242,8 +242,8 @@ public partial class MainWindow
 
         try
         {
-            return ImagePayloadFactory.NeedsSquarePadding(asset.Path)
-                ? "Uploading square PNG with transparent padding..."
+            return ImagePayloadFactory.NeedsStaticNormalization(asset.Path)
+                ? "Preparing PNG for upload..."
                 : "Uploading...";
         }
         catch (Exception)
