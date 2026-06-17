@@ -98,6 +98,39 @@ internal static class VrchatApiClientTests
         }
     }
 
+    public static async Task UploadGifEmojiThroughAnimatedAutoRouteAsync()
+    {
+        string root = TestFiles.CreateTempDirectory();
+        try
+        {
+            string gifPath = Path.Combine(root, "direct_spinanimationStyle_pingpongloopStyle.gif");
+            TestFiles.WriteAnimatedGif(gifPath);
+
+            FakeHttpHandler handler = new();
+            HttpClient httpClient = new(handler)
+            {
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+            };
+            VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
+
+            UploadResult upload = await client.UploadEmojiAsync(gifPath, "spin");
+            TestAssert.Equal("file_uploaded", upload.Id, "upload id");
+            TestAssert.Equal(VrchatFileTags.AnimatedEmoji, upload.Tag, "upload tag");
+
+            CapturedRequest request = handler.Requests.Single(request => request.Method == HttpMethod.Post);
+            TestAssert.True(request.Body.Contains("emojianimated", StringComparison.Ordinal), "GIF upload has animated tag");
+            TestAssert.True(request.Body.Contains("name=frames", StringComparison.Ordinal), "GIF upload has frame count");
+            TestAssert.True(request.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "GIF upload has fps");
+            TestAssert.True(request.Body.Contains("name=loopStyle", StringComparison.Ordinal), "GIF upload has loop style");
+            TestAssert.True(request.Body.Contains("pingpong", StringComparison.Ordinal), "GIF upload has loop style value");
+            TestAssert.True(request.Body.Contains("image/png", StringComparison.Ordinal), "GIF upload sends PNG sprite sheet");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed record CapturedRequest(HttpMethod Method, Uri Uri, Dictionary<string, string> Headers, string Body);
 
     private sealed class FakeHttpHandler : HttpMessageHandler

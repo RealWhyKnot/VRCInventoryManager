@@ -139,10 +139,22 @@ internal static class LocalAssetTests
         };
         TestAssert.False(spriteSheet.CanUploadAsStaticEmoji, "sprite sheet static upload denied");
         TestAssert.True(spriteSheet.CanUploadAsAnimatedEmoji, "sprite sheet animated upload allowed");
+        TestAssert.True(
+            LocalAsset.TryGetSpriteSheetAnimationMetadata(spriteSheet.Path, out int frames, out int framesOverTime),
+            "sprite sheet metadata parsed");
+        TestAssert.Equal(64, frames, "sprite sheet metadata frames");
+        TestAssert.Equal(24, framesOverTime, "sprite sheet metadata fps");
 
-        LocalAsset missingFps = png with { Name = "sheet_stopanimationStyle_64frames.png" };
+        LocalAsset missingFps = png with
+        {
+            Path = @"C:\tmp\sheet_stopanimationStyle_64frames.png",
+            Name = "sheet_stopanimationStyle_64frames.png"
+        };
         TestAssert.True(missingFps.CanUploadAsStaticEmoji, "missing fps static upload");
         TestAssert.False(missingFps.CanUploadAsAnimatedEmoji, "missing fps animated upload");
+        TestAssert.False(
+            LocalAsset.TryGetSpriteSheetAnimationMetadata(missingFps.Path, out _, out _),
+            "missing fps metadata not parsed");
 
         LocalAsset invalidFrameCount = png with { Name = "sheet_stopanimationStyle_1frames_24fps.png" };
         TestAssert.True(invalidFrameCount.CanUploadAsStaticEmoji, "one-frame static upload");

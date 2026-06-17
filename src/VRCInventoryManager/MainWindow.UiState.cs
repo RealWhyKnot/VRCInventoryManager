@@ -18,7 +18,7 @@ public partial class MainWindow
         bool stickerHasCapacity = stickerCount < 0 || stickerCount < RemoteInventorySnapshot.StickerLimit;
         bool emojiHasCapacity = emojiCount < 0 || emojiCount < RemoteInventorySnapshot.EmojiLimit;
         UploadStickerButton.IsEnabled = hasAsset && connected && stickerHasCapacity;
-        UploadEmojiButton.IsEnabled = selectedAsset?.CanUploadAsStaticEmoji == true && connected && emojiHasCapacity;
+        UploadEmojiButton.IsEnabled = hasAsset && connected && emojiHasCapacity;
         UploadAnimatedEmojiButton.IsEnabled = selectedAsset?.CanUploadAsAnimatedEmoji == true && connected && emojiHasCapacity;
         DeleteRemoteButton.IsEnabled = RemoteFileList.SelectedItem is RemoteInventoryViewModel && connected;
         RemoteEmptyText.Visibility = remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;

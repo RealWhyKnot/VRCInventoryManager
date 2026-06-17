@@ -24,6 +24,7 @@ TestCase[] tests =
     new("convert animated GIF to sprite sheet", GifSpriteSheetConverterTests.ConvertAnimatedGifToSpriteSheetAsync),
     new("use power-of-two GIF sprite sheet grid", GifSpriteSheetConverterTests.UsePowerOfTwoSpriteSheetGridAsync),
     new("construct VRChat API requests", VrchatApiClientTests.ConstructRequestsAsync),
+    new("upload GIF emoji through animated auto route", VrchatApiClientTests.UploadGifEmojiThroughAnimatedAutoRouteAsync),
     new("reject animated sources for static emoji uploads", VrchatApiClientTests.RejectAnimatedSourcesForStaticEmojiUploadsAsync)
 ];
 

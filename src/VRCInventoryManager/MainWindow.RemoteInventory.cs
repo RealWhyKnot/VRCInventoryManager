@@ -86,7 +86,7 @@ public partial class MainWindow
 
     private async Task UploadSelectedAsync(
         Func<VrchatApiClient, LocalAsset, Task<UploadResult>> upload,
-        bool squareStillPayload = true)
+        Func<LocalAsset, bool>? squareStillPayload = null)
     {
         if (apiClient is null)
         {
@@ -103,7 +103,8 @@ public partial class MainWindow
         SetBusy(true);
         try
         {
-            ActionStatusText.Text = GetUploadStatusText(asset, squareStillPayload);
+            bool useSquareStillPayload = squareStillPayload?.Invoke(asset) ?? true;
+            ActionStatusText.Text = GetUploadStatusText(asset, useSquareStillPayload);
             App.Log.Info($"Uploading '{asset.Name}'.");
             UploadResult result = await upload(apiClient, asset);
             ActionStatusText.Text = $"Uploaded {result.Id}";
@@ -134,7 +135,9 @@ public partial class MainWindow
 
     private async void UploadEmoji_Click(object sender, RoutedEventArgs e)
     {
-        await UploadSelectedAsync((client, asset) => client.UploadStaticEmojiAsync(asset.Path, asset.AnimationStyle));
+        await UploadSelectedAsync(
+            (client, asset) => client.UploadEmojiAsync(asset.Path, asset.AnimationStyle),
+            asset => !asset.CanUploadAsAnimatedEmoji);
     }
 
     private async void UploadAnimatedEmoji_Click(object sender, RoutedEventArgs e)
@@ -147,7 +150,7 @@ public partial class MainWindow
                     asset.AnimationStyle,
                     asset.Frames!.Value,
                     asset.FramesOverTime!.Value),
-            squareStillPayload: false);
+            _ => false);
     }
 
     private void RemoteFileList_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -67,6 +67,9 @@ public sealed record LocalAsset(
     public static bool CanUploadPathAsAnimatedEmoji(string path) =>
         CanUploadPathAsAnimatedEmoji(System.IO.Path.GetFileName(path), System.IO.Path.GetExtension(path));
 
+    public static bool TryGetSpriteSheetAnimationMetadata(string path, out int frames, out int framesOverTime) =>
+        TryGetSpriteSheetAnimationMetadata(System.IO.Path.GetFileName(path), System.IO.Path.GetExtension(path), out frames, out framesOverTime);
+
     private static bool CanUploadPathAsStaticEmoji(string name, string extension) =>
         !IsGifExtension(extension) && !HasSpriteSheetAnimationMetadata(name, extension);
 
@@ -74,9 +77,14 @@ public sealed record LocalAsset(
         IsGifExtension(extension) || HasSpriteSheetAnimationMetadata(name, extension);
 
     private static bool HasSpriteSheetAnimationMetadata(string name, string extension) =>
-        !IsGifExtension(extension) &&
-        ReadIntMetadata(name, "frames").GetValueOrDefault() > 1 &&
-        ReadIntMetadata(name, "fps").GetValueOrDefault() > 0;
+        TryGetSpriteSheetAnimationMetadata(name, extension, out _, out _);
+
+    private static bool TryGetSpriteSheetAnimationMetadata(string name, string extension, out int frames, out int framesOverTime)
+    {
+        frames = ReadIntMetadata(name, "frames").GetValueOrDefault();
+        framesOverTime = ReadIntMetadata(name, "fps").GetValueOrDefault();
+        return !IsGifExtension(extension) && frames > 1 && framesOverTime > 0;
+    }
 
     private static bool IsGifExtension(string extension) =>
         string.Equals(extension, ".gif", StringComparison.OrdinalIgnoreCase);

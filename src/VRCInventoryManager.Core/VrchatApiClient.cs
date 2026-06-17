@@ -84,6 +84,21 @@ public sealed class VrchatApiClient
         return await UploadImageAsync(bytes, VrchatFileTags.Emoji, animationStyle, null, null, null, cancellationToken);
     }
 
+    public async Task<UploadResult> UploadEmojiAsync(string path, string animationStyle, CancellationToken cancellationToken = default)
+    {
+        if (string.Equals(Path.GetExtension(path), ".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            return await UploadAnimatedEmojiAsync(path, animationStyle, cancellationToken);
+        }
+
+        if (LocalAsset.TryGetSpriteSheetAnimationMetadata(path, out int frames, out int framesOverTime))
+        {
+            return await UploadAnimatedEmojiSpriteSheetAsync(path, animationStyle, frames, framesOverTime, cancellationToken);
+        }
+
+        return await UploadStaticEmojiAsync(path, animationStyle, cancellationToken);
+    }
+
     public async Task<UploadResult> UploadAnimatedEmojiAsync(string gifPath, string animationStyle, CancellationToken cancellationToken = default)
     {
         SpriteSheetResult spriteSheet = spriteSheetConverter.Convert(gifPath);
