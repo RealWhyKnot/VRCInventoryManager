@@ -132,7 +132,7 @@
                                  SelectionChanged="LocalAssetList_SelectionChanged">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <local:VirtualizingTilePanel ItemWidth="120" ItemHeight="154" />
+                                    <local:VirtualizingTilePanel ItemWidth="128" ItemHeight="162" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemTemplate>

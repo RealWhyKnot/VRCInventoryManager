@@ -290,5 +290,14 @@
         <Setter Property="Padding" Value="6" />
         <Setter Property="Margin" Value="4" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="Panel.ZIndex" Value="0" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Panel.ZIndex" Value="1" />
+            </Trigger>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Panel.ZIndex" Value="2" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>
