@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## v2026.6.18.0 - 2026-06-18
+
 ### Fixed
 - **ui:** Update icon and gallery selection (b12e508)
 
