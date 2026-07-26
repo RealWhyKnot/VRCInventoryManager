@@ -39,7 +39,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Cache NuGet packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-release-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
@@ -47,7 +47,7 @@ jobs:
             nuget-release-${{ runner.os }}-
 
       - name: Cache NSIS install
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: 'C:\Program Files (x86)\NSIS'
           key: nsis-${{ runner.os }}-3.12
