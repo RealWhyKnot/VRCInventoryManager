@@ -186,6 +186,15 @@ $authorHandleMap = @{
     "WhyKnot" = "RealWhyKnot"
 }
 
+function Format-AuthorCredit {
+    param([string] $Author)
+
+    if (-not $Author) { return "" }
+    if ($Author -match '\[bot\]$') { return $Author }
+    if ($Author -notmatch '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$') { return $Author }
+    return "[$Author](https://github.com/$Author)"
+}
+
 $entries = New-Object System.Collections.Generic.List[object]
 foreach ($line in @($rawLog)) {
     if ([string]::IsNullOrWhiteSpace($line)) {
@@ -274,7 +283,7 @@ if ($entries.Count -eq 0) {
     foreach ($group in $groups) {
         [void]$builder.AppendLine("### $($group.Name)")
         foreach ($entry in $group.Group) {
-            [void]$builder.AppendLine("- $($entry.Subject) by @$($entry.Author) in $($entry.Short)")
+            [void]$builder.AppendLine("- $($entry.Subject) by $(Format-AuthorCredit $entry.Author) in $($entry.Short)")
         }
         [void]$builder.AppendLine()
     }

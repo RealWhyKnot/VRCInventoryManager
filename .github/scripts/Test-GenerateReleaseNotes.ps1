@@ -81,7 +81,7 @@ try {
 
     Assert-Contains -Text $notes -Expected "# VRCInventoryManager v2026.6.16.0-beta"
     Assert-Contains -Text $notes -Expected "### Features"
-    Assert-Contains -Text $notes -Expected "feat(ui): add folder grid by @RealWhyKnot"
+    Assert-Contains -Text $notes -Expected "feat(ui): add folder grid by [RealWhyKnot](https://github.com/RealWhyKnot)"
     Assert-Contains -Text $notes -Expected "### Bug Fixes"
     Assert-Contains -Text $notes -Expected "compare/v2026.6.15.0...v2026.6.16.0-beta"
     Assert-Contains -Text $notes -Expected "VRCInventoryManager-v2026.6.16.0-beta.integrity.tsv"
