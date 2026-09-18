@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- **release:** Credit authors by profile link instead of a mention (4c5b314)
+
 ---
 
 ## v2026.6.18.0 - 2026-06-18
