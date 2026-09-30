@@ -1,24 +1,24 @@
 # VRCInventoryManager
 
-VRCInventoryManager is a Windows desktop app for browsing a local VRChat image folder and managing uploaded sticker and emoji files.
+A Windows desktop app for browsing your local VRChat screenshots and managing your uploaded stickers and emoji.
 
-The app opens the current VRChat picture folder dynamically, using the same `picture_output_folder` setting surfaced by VRCX when present and the current user's Pictures folder as a fallback. It supports recursive browsing with VRCX month folders, previews animated GIFs, and can connect through the existing VRCX cookie store to list, preview, upload, and delete remote sticker and emoji files.
+It opens the current VRChat picture folder, using the `picture_output_folder` setting from VRCX when there is one and your Pictures folder otherwise. Browsing is recursive and understands VRCX's month folders. Animated GIFs preview in place. Through the existing VRCX cookie store it can list, preview, upload and delete your remote stickers and emoji.
 
-Each run writes `VRCInventoryManager.debug.log` beside `VRCInventoryManager.exe`.
+Each run writes `VRCInventoryManager.debug.log` next to `VRCInventoryManager.exe`.
 
-## Local Build
+## Build
 
 ```powershell
 .\build.ps1
 ```
 
-## Release Build
+For a release build:
 
 ```powershell
 .\build.ps1 -Release
 ```
 
-The release build creates a compressed, self-contained, single-exe win-x64 zip under `release\`. If NSIS is installed, it also builds a per-user installer.
+That produces a compressed, self-contained, single-exe win-x64 zip under `release\`. If NSIS is installed it also builds a per-user installer.
 
 ## License
 
