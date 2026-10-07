@@ -1,3 +1,3 @@
 ## Uninstall
 
-If installed through Setup.exe, use `Uninstall.exe` from the install folder or Windows Apps settings. If extracted from the zip, delete the extracted folder.
+If you used Setup.exe, uninstall it from Windows Apps settings or run `Uninstall.exe` in the install folder. If you used the zip, delete the folder you extracted.

@@ -1,3 +1,3 @@
 ## What you need to do
 
-Make sure VRCX is installed and already signed in before using the VRChat inventory actions. The app reads the existing local VRCX session and does not ask for your VRChat password.
+Install VRCX and sign in to it before using the sticker and emoji actions. The app reads VRCX's local session and never asks for your VRChat password.

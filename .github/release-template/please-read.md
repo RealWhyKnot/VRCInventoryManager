@@ -1,3 +1,3 @@
 ## Please read
 
-Remote delete actions only remove the selected VRChat sticker or emoji file. Local image files are not deleted.
+Deleting a sticker or emoji only removes that file from VRChat. The image files on your PC aren't touched.

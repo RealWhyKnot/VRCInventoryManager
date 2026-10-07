@@ -1,8 +1,6 @@
 # Release template
 
-`Generate-ReleaseNotes.ps1` reads these markdown snippets when composing a GitHub release body.
-
-Supported tokens:
+`Generate-ReleaseNotes.ps1` builds the GitHub release body from these Markdown snippets and replaces these tokens in them:
 
 - `{tag}`
 - `{version}`
@@ -16,4 +14,4 @@ Supported tokens:
 - `{setup-name}`
 - `{integrity-name}`
 
-Keep snippets ASCII-only. Per-release notes belong in `.github/release-extras/<tag>.md`.
+The snippets have to be ASCII. Notes for one release go in `.github/release-extras/<tag>.md`.

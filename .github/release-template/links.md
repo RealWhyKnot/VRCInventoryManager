@@ -1,5 +1,3 @@
 ## Links
 
-- Download the zip: `{zip-name}`
-- Download the installer: `{setup-name}`
-- Commit: `{commit-sha-short}`
+The zip is `{zip-name}` and the installer is `{setup-name}`, both built from commit `{commit-sha-short}`.
