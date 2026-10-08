@@ -30,6 +30,7 @@ public partial class MainWindow : Window
     private int busyDepth;
     private int stickerCount = -1;
     private int emojiCount = -1;
+    private GithubRelease? pendingUpdate;
 
     public MainWindow()
     {
@@ -72,6 +73,7 @@ public partial class MainWindow : Window
             loaded = true;
             ClearPreview();
             UpdateButtons();
+            _ = CheckForUpdateAsync();
             await RefreshLocalAsync();
             await ConnectAsync();
         }
@@ -80,6 +82,60 @@ public partial class MainWindow : Window
             App.Log.Error("Startup failed.", ex);
             HeaderStatusText.Text = "Startup failed.";
             ActionStatusText.Text = ex.Message;
+        }
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            await Updater.CleanUpAsync();
+            if (!settings.UpdateCheck)
+            {
+                return;
+            }
+
+            pendingUpdate = await Updater.FindAsync(settings.SkippedUpdate);
+        }
+        catch (Exception ex)
+        {
+            App.Log.Error("Update check failed.", ex);
+            return;
+        }
+
+        OfferUpdate();
+    }
+
+    private void OfferUpdate()
+    {
+        if (pendingUpdate is not { } release || busyDepth > 0 || !IsLoaded)
+        {
+            return;
+        }
+
+        pendingUpdate = null;
+        IntPtr owner = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        switch (UpdateDialog.Show(owner, release, out string? downloaded))
+        {
+            case UpdateAnswer.Skip:
+                settings = settings with { SkippedUpdate = release.TagName };
+                settingsStore.Save(settings);
+                break;
+            case UpdateAnswer.Downloaded:
+                try
+                {
+                    Updater.Apply(downloaded!);
+                }
+                catch (Exception ex)
+                {
+                    App.Log.Error("Update install failed.", ex);
+                    MessageBox.Show(this, $"Could not install the update: {ex.Message}", "VRCInventoryManager",
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                Close();
+                break;
         }
     }
 }

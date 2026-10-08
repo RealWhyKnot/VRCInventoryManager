@@ -32,6 +32,10 @@ public partial class MainWindow
         Cursor = active ? WpfCursors.Wait : WpfCursors.Arrow;
         BusyBar.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         HeaderStatusText.Text = active ? "Working..." : "Ready";
+        if (!active && pendingUpdate is not null)
+        {
+            Dispatcher.BeginInvoke(OfferUpdate);
+        }
     }
 
     private void EnableDarkTitleBar()

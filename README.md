@@ -8,6 +8,8 @@ With VRCX signed in, it can also list, preview, upload and delete your stickers 
 
 Each run writes `VRCInventoryManager.debug.log` next to `VRCInventoryManager.exe`.
 
+At startup it checks the releases page for a newer version and asks before updating, once nothing is uploading. An installed copy updates by running the new setup, and a zip copy swaps in the new exe. Both reopen afterwards. To stop the check, set `"UpdateCheck": false` in `%AppData%\VRCInventoryManager\settings.json`.
+
 ## Build
 
 ```powershell

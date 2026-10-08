@@ -31,7 +31,12 @@ TestCase[] tests =
     new("construct VRChat API requests", VrchatApiClientTests.ConstructRequestsAsync),
     new("upload GIF emoji through animated auto route", VrchatApiClientTests.UploadGifEmojiThroughAnimatedAutoRouteAsync),
     new("reject animated sources for static emoji uploads", VrchatApiClientTests.RejectAnimatedSourcesForStaticEmojiUploadsAsync),
-    new("reject invalid sprite sheet uploads", VrchatApiClientTests.RejectInvalidSpriteSheetUploadsAsync)
+    new("reject invalid sprite sheet uploads", VrchatApiClientTests.RejectInvalidSpriteSheetUploadsAsync),
+    new("parse update version channels", UpdateTests.ParseVersionChannelsAsync),
+    new("select update release by channel", UpdateTests.SelectReleaseByChannelAsync),
+    new("name update release assets", UpdateTests.NameReleaseAssetsAsync),
+    new("parse update integrity manifest", UpdateTests.ParseIntegrityManifestAsync),
+    new("build update setup script", UpdateTests.BuildSetupScriptAsync)
 ];
 
 int failures = await TestRunner.RunAsync(tests);

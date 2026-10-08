@@ -79,7 +79,7 @@ Write-Host "Build version: $Version"
 dotnet restore VRCInventoryManager.slnx
 if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed" }
 
-dotnet build VRCInventoryManager.slnx --configuration Release --no-restore -p:Version=$numericVersion
+dotnet build VRCInventoryManager.slnx --configuration Release --no-restore -p:Version=$numericVersion -p:InformationalVersion=$Version
 if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
 dotnet run --project tests\VRCInventoryManager.Tests\VRCInventoryManager.Tests.csproj --configuration Release --no-build
@@ -104,7 +104,8 @@ if ($Release) {
         -p:PublishReadyToRun=false `
         -p:DebugType=None `
         -p:DebugSymbols=false `
-        -p:Version=$numericVersion
+        -p:Version=$numericVersion `
+        -p:InformationalVersion=$Version
     if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
     $publishedFiles = @(Get-ChildItem -LiteralPath $appDir -File)

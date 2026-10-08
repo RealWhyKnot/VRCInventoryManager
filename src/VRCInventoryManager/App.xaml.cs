@@ -49,5 +49,6 @@ public partial class App : System.Windows.Application
         Log.Info($"Application exiting with code {e.ApplicationExitCode}.");
         debugLog.Dispose();
         base.OnExit(e);
+        Updater.Relaunch();
     }
 }
