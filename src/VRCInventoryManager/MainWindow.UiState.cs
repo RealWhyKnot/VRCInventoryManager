@@ -38,11 +38,11 @@ public partial class MainWindow
         }
     }
 
-    private void EnableDarkTitleBar()
+    internal static void EnableDarkTitleBar(Window window)
     {
         try
         {
-            IntPtr handle = new WindowInteropHelper(this).Handle;
+            IntPtr handle = new WindowInteropHelper(window).Handle;
             if (handle == IntPtr.Zero)
             {
                 return;

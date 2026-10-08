@@ -55,7 +55,7 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        EnableDarkTitleBar();
+        EnableDarkTitleBar(this);
     }
 
     private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -114,8 +114,10 @@ public partial class MainWindow : Window
         }
 
         pendingUpdate = null;
-        IntPtr owner = new System.Windows.Interop.WindowInteropHelper(this).Handle;
-        switch (UpdateDialog.Show(owner, release, out string? downloaded))
+        var dialog = new UpdateWindow(release) { Owner = this };
+        dialog.ShowDialog();
+        string? downloaded = dialog.Downloaded;
+        switch (dialog.Answer)
         {
             case UpdateAnswer.Skip:
                 settings = settings with { SkippedUpdate = release.TagName };
