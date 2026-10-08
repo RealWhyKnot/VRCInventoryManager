@@ -8,6 +8,17 @@ namespace VRCInventoryManager.Tests;
 
 internal static class VrcxCookieTests
 {
+    public static Task BundledSqliteHasTheAggregateFixAsync()
+    {
+        using SqliteConnection connection = new("Data Source=:memory:");
+        connection.Open();
+        using SqliteCommand command = connection.CreateCommand();
+        command.CommandText = "select sqlite_version()";
+        string version = (string)command.ExecuteScalar()!;
+        TestAssert.True(Version.Parse(version) >= new Version(3, 50, 2), $"bundled SQLite {version} predates 3.50.2 (CVE-2025-6965)");
+        return Task.CompletedTask;
+    }
+
     public static Task ParseCookiePayloadAsync()
     {
         string encoded = EncodeCookieJson([

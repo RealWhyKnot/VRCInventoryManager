@@ -15,6 +15,7 @@ TestCase[] tests =
     new("resolve VRCX database directory override", VrcxPathResolverTests.ResolveVrcxDatabaseDirectoryOverrideAsync),
     new("parse VRCX cookie payload", VrcxCookieTests.ParseCookiePayloadAsync),
     new("load VRCX cookies from sqlite copy", VrcxCookieTests.LoadCookiesFromSqliteCopyAsync),
+    new("bundled SQLite has the CVE-2025-6965 fix", VrcxCookieTests.BundledSqliteHasTheAggregateFixAsync),
     new("preserve upload-ready static PNG payload", ImagePayloadFactoryTests.PreserveUploadReadyStaticPngAsync),
     new("convert JPEG payload to PNG without square padding", ImagePayloadFactoryTests.ConvertJpegPayloadToPngWithoutSquarePaddingAsync),
     new("downscale oversized static PNG payload", ImagePayloadFactoryTests.DownscaleOversizedStaticPayloadAsync),
