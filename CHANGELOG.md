@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+### Added
+- **updates:** Show the update prompt in the app's dark theme (c7f3075)
+- **updates:** Check for a newer release at startup and update in place (6bf8770)
+
+### Fixed
+- **deps:** Move to Microsoft.Data.Sqlite 10.0.12 for SQLite 3.53.3 (36caa80)
+
 ### Fixed
 - **release:** Credit authors by profile link instead of a mention (4c5b314)
 
