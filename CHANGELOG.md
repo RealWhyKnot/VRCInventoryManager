@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- **ui:** Disable inventory actions while a task runs (07752fb)
+
 ### Added
 - **updates:** Show the update prompt in the app's dark theme (c7f3075)
 - **updates:** Check for a newer release at startup and update in place (6bf8770)
