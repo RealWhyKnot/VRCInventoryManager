@@ -41,7 +41,8 @@ Section "Install"
     SetShellVarContext current
 
     SetOutPath "$INSTDIR"
-    File /r "${APP_BASEDIR}\*.*"
+    File "${APP_BASEDIR}\VRCInventoryManager.exe"
+    File "${APP_BASEDIR}\LICENSE"
 
     CreateDirectory "$SMPROGRAMS\VRCInventoryManager"
     CreateShortCut "$SMPROGRAMS\VRCInventoryManager\VRCInventoryManager.lnk" "$INSTDIR\VRCInventoryManager.exe"
@@ -63,8 +64,12 @@ Section "Uninstall"
     Delete "$SMPROGRAMS\VRCInventoryManager\VRCInventoryManager.lnk"
     RMDir "$SMPROGRAMS\VRCInventoryManager"
 
+    Delete "$INSTDIR\VRCInventoryManager.exe"
+    Delete "$INSTDIR\VRCInventoryManager.exe.old"
+    Delete "$INSTDIR\VRCInventoryManager.debug.log"
+    Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\Uninstall.exe"
-    RMDir /r "$INSTDIR"
+    RMDir "$INSTDIR"
 
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\VRCInventoryManager"
     DeleteRegKey HKCU "Software\VRCInventoryManager"

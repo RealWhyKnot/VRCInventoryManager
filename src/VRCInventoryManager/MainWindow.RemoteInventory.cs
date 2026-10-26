@@ -88,6 +88,11 @@ public partial class MainWindow
         Func<VrchatApiClient, LocalAsset, Task<UploadResult>> upload,
         Func<LocalAsset, bool>? squareStillPayload = null)
     {
+        if (busyDepth > 0)
+        {
+            return;
+        }
+
         if (apiClient is null)
         {
             WpfMessageBox.Show(this, "Connect to VRCX before uploading.", "Not connected", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -124,9 +129,21 @@ public partial class MainWindow
         }
     }
 
-    private async void Reconnect_Click(object sender, RoutedEventArgs e) => await ConnectAsync();
+    private async void Reconnect_Click(object sender, RoutedEventArgs e)
+    {
+        if (busyDepth == 0)
+        {
+            await ConnectAsync();
+        }
+    }
 
-    private async void RefreshRemote_Click(object sender, RoutedEventArgs e) => await RefreshRemoteAsync();
+    private async void RefreshRemote_Click(object sender, RoutedEventArgs e)
+    {
+        if (busyDepth == 0)
+        {
+            await RefreshRemoteAsync();
+        }
+    }
 
     private async void UploadSticker_Click(object sender, RoutedEventArgs e)
     {
@@ -183,7 +200,7 @@ public partial class MainWindow
 
     private async void DeleteRemote_Click(object sender, RoutedEventArgs e)
     {
-        if (apiClient is null || RemoteFileList.SelectedItem is not RemoteInventoryViewModel selected)
+        if (busyDepth > 0 || apiClient is null || RemoteFileList.SelectedItem is not RemoteInventoryViewModel selected)
         {
             return;
         }

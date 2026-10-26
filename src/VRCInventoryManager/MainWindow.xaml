@@ -40,7 +40,7 @@
                                Margin="0,4,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Reconnect" Click="Reconnect_Click" Style="{StaticResource PrimaryButton}" Margin="0" />
+                    <Button x:Name="ReconnectButton" Content="Reconnect" Click="Reconnect_Click" Style="{StaticResource PrimaryButton}" Margin="0" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -269,7 +269,7 @@
                     <StackPanel>
                         <DockPanel>
                             <TextBlock Text="VRChat inventory" Style="{StaticResource SectionTitle}" />
-                            <Button Content="Refresh" Click="RefreshRemote_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Margin="8,0,0,0" />
+                            <Button x:Name="RefreshRemoteButton" Content="Refresh" Click="RefreshRemote_Click" DockPanel.Dock="Right" HorizontalAlignment="Right" Margin="8,0,0,0" />
                         </DockPanel>
                         <TextBlock x:Name="ConnectionStatusText"
                                    Foreground="{StaticResource MutedTextBrush}"

@@ -13,14 +13,19 @@ public partial class MainWindow
         LocalAsset? selectedAsset = LocalAssetList.SelectedItem is LocalAssetViewModel selected
             ? selected.Asset
             : null;
-        bool hasAsset = selectedAsset is not null;
-        bool connected = apiClient is not null;
-        bool stickerHasCapacity = stickerCount < 0 || stickerCount < RemoteInventorySnapshot.StickerLimit;
-        bool emojiHasCapacity = emojiCount < 0 || emojiCount < RemoteInventorySnapshot.EmojiLimit;
-        UploadStickerButton.IsEnabled = hasAsset && connected && stickerHasCapacity;
-        UploadEmojiButton.IsEnabled = hasAsset && connected && emojiHasCapacity;
-        UploadAnimatedEmojiButton.IsEnabled = selectedAsset?.CanUploadAsAnimatedEmoji == true && connected && emojiHasCapacity;
-        DeleteRemoteButton.IsEnabled = RemoteFileList.SelectedItem is RemoteInventoryViewModel && connected;
+        InventoryActionState actions = InventoryActionState.For(
+            selectedAsset,
+            RemoteFileList.SelectedItem is RemoteInventoryViewModel,
+            apiClient is not null,
+            stickerCount,
+            emojiCount,
+            busyDepth > 0);
+        UploadStickerButton.IsEnabled = actions.UploadSticker;
+        UploadEmojiButton.IsEnabled = actions.UploadEmoji;
+        UploadAnimatedEmojiButton.IsEnabled = actions.UploadAnimatedEmoji;
+        DeleteRemoteButton.IsEnabled = actions.DeleteRemote;
+        ReconnectButton.IsEnabled = actions.Reconnect;
+        RefreshRemoteButton.IsEnabled = actions.RefreshRemote;
         RemoteEmptyText.Visibility = remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         LocalEmptyText.Visibility = filteredAssets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -32,6 +37,7 @@ public partial class MainWindow
         Cursor = active ? WpfCursors.Wait : WpfCursors.Arrow;
         BusyBar.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         HeaderStatusText.Text = active ? "Working..." : "Ready";
+        UpdateButtons();
         if (!active && pendingUpdate is not null)
         {
             Dispatcher.BeginInvoke(OfferUpdate);

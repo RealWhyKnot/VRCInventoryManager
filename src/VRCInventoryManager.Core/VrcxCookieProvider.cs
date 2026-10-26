@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using SQLitePCL;
 
 namespace VRCInventoryManager.Core;
 
@@ -116,6 +117,18 @@ public sealed class VrcxCookieProvider
 
     private string ReadEncodedCookies()
     {
+        try
+        {
+            return ReadEncodedCookiesFromDatabase(databasePath);
+        }
+        catch (SqliteException ex) when (ex.SqliteErrorCode is raw.SQLITE_BUSY or raw.SQLITE_LOCKED or raw.SQLITE_READONLY or raw.SQLITE_CANTOPEN)
+        {
+            return ReadEncodedCookiesFromCopy();
+        }
+    }
+
+    private string ReadEncodedCookiesFromCopy()
+    {
         string tempPath = Path.Combine(Path.GetTempPath(), $"vrcx-cookies-{Guid.NewGuid():N}.sqlite3");
         try
         {
@@ -124,13 +137,15 @@ public sealed class VrcxCookieProvider
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
-            try
+            foreach (string path in new[] { tempPath, tempPath + "-journal", tempPath + "-wal", tempPath + "-shm" })
             {
-                File.Delete(tempPath);
-            }
-            catch (IOException)
-            {
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (IOException)
+                {
+                }
             }
         }
     }
@@ -140,7 +155,9 @@ public sealed class VrcxCookieProvider
         SqliteConnectionStringBuilder builder = new()
         {
             DataSource = path,
-            Mode = SqliteOpenMode.ReadOnly
+            Mode = SqliteOpenMode.ReadOnly,
+            Pooling = false,
+            DefaultTimeout = 5
         };
 
         using SqliteConnection connection = new(builder.ToString());
@@ -150,7 +167,6 @@ public sealed class VrcxCookieProvider
         command.Parameters.AddWithValue("$key", "default");
         object? value = command.ExecuteScalar();
         string? encodedCookies = value as string;
-        SqliteConnection.ClearAllPools();
         return encodedCookies ?? throw new InvalidOperationException("VRCX default cookie row was not found.");
     }
 
