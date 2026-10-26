@@ -29,6 +29,12 @@ permissions:
   contents: read
 
 jobs:
+  checks:
+    name: Repo checks
+    permissions:
+      contents: read
+    uses: RealWhyKnot/workflows/.github/workflows/repo-checks.yml@v1
+
   lint:
     name: lint (changed)
     runs-on: windows-2025-vs2026
@@ -89,7 +95,6 @@ jobs:
       - name: Validate workflow scripts
         shell: pwsh
         run: |
-          ./.github/scripts/Test-WorkflowSyntax.ps1
           ./.github/scripts/Test-UpdateChangelog.ps1
           ./.github/scripts/Test-GenerateReleaseNotes.ps1
           ./.github/scripts/Test-NightlyBetaPlan.ps1

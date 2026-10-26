@@ -18,8 +18,8 @@ jobs:
     uses: RealWhyKnot/workflows/.github/workflows/nightly-beta-scripted.yml@v1
     with:
       runs-on: windows-2025-vs2026
+      ci-workflow: ci.yml
       validate-scripts: |
-        ./.github/scripts/Test-WorkflowSyntax.ps1
         ./.github/scripts/Test-NightlyBetaPlan.ps1
       ignore-paths: |
         lint.ps1

@@ -21,12 +21,16 @@ jobs:
   release:
     name: build and publish
     runs-on: windows-2025-vs2026
-    timeout-minutes: 40
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -37,6 +41,12 @@ jobs:
           tag: ${{ inputs.tag }}
           tag-pattern: '^v\d{4}\.\d+\.\d+\.\d+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$'
           prerelease-pattern: '^v\d{4}\.\d+\.\d+\.\d+-.+$'
+
+      - name: Wait for CI
+        uses: RealWhyKnot/workflows/wait-for-ci@v1
+        with:
+          sha: ${{ steps.release_tag.outputs.sha }}
+          workflow: ci.yml
 
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v6
@@ -51,16 +61,9 @@ jobs:
           restore-keys: |
             nuget-release-${{ runner.os }}-
 
-      - name: Cache NSIS install
-        uses: actions/cache@v6
-        with:
-          path: 'C:\Program Files (x86)\NSIS'
-          key: nsis-${{ runner.os }}-3.12
-
       - name: Validate workflow scripts
         shell: pwsh
         run: |
-          ./.github/scripts/Test-WorkflowSyntax.ps1
           ./.github/scripts/Test-UpdateChangelog.ps1
           ./.github/scripts/Test-GenerateReleaseNotes.ps1
           ./.github/scripts/Test-NightlyBetaPlan.ps1
@@ -72,14 +75,9 @@ jobs:
           prerelease-suffix: '[A-Za-z0-9][A-Za-z0-9.-]*'
 
       - name: Install NSIS
-        shell: pwsh
-        run: |
-          if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
-            Write-Host "NSIS already installed."
-          } else {
-            choco install nsis -y --no-progress
-            if ($LASTEXITCODE -ne 0) { throw "NSIS install failed with exit $LASTEXITCODE" }
-          }
+        uses: RealWhyKnot/workflows/setup-nsis@v1
+        with:
+          version: '3.12'
 
       - name: Promote Unreleased -> tagged section
         shell: pwsh

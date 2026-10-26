@@ -47,8 +47,7 @@ function Get-ChangedCSharpFiles {
     return $files
 }
 
-Invoke-Step -Name "workflow script syntax" -Command {
-    ./.github/scripts/Test-WorkflowSyntax.ps1
+Invoke-Step -Name "workflow script tests" -Command {
     ./.github/scripts/Test-UpdateChangelog.ps1
     ./.github/scripts/Test-GenerateReleaseNotes.ps1
     ./.github/scripts/Test-NightlyBetaPlan.ps1

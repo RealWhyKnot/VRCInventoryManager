@@ -37,21 +37,10 @@ jobs:
           restore-keys: |
             nuget-nightly-${{ runner.os }}-
 
-      - name: Cache NSIS install
-        uses: actions/cache@v6
-        with:
-          path: 'C:\Program Files (x86)\NSIS'
-          key: nsis-${{ runner.os }}-3.12
-
       - name: Install NSIS
-        shell: pwsh
-        run: |
-          if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") {
-            Write-Host "NSIS already installed."
-          } else {
-            choco install nsis -y --no-progress
-            if ($LASTEXITCODE -ne 0) { throw "NSIS install failed with exit $LASTEXITCODE" }
-          }
+        uses: RealWhyKnot/workflows/setup-nsis@v1
+        with:
+          version: '3.12'
 
       - name: Run full lint check
         shell: pwsh
