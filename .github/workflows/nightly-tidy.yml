@@ -44,7 +44,7 @@ jobs:
 
       - name: Run full lint check
         shell: pwsh
-        run: .\lint.ps1 -Check
+        run: .\.github\lint\lint.ps1 -Check
 
       - name: Build release package
         shell: pwsh

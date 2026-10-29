@@ -19,10 +19,10 @@ if ! command -v dotnet >/dev/null 2>&1; then
   exit 0
 fi
 
-echo "pre-push: running lint.ps1..." >&2
-"$pwsh_bin" -NoProfile -ExecutionPolicy Bypass -File "$repo_root/lint.ps1" -Check -ChangedOnly
+echo "pre-push: running .github/lint/lint.ps1..." >&2
+"$pwsh_bin" -NoProfile -ExecutionPolicy Bypass -File "$repo_root/.github/lint/lint.ps1" -Check -ChangedOnly
 if [ "$?" -ne 0 ]; then
-  echo "pre-push BLOCKED: lint.ps1 failed." >&2
+  echo "pre-push BLOCKED: .github/lint/lint.ps1 failed." >&2
   exit 1
 fi
 

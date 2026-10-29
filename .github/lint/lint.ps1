@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
-Set-Location $PSScriptRoot
+Set-Location (Join-Path $PSScriptRoot "../..")
 
 function Invoke-Step {
     param(
