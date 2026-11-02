@@ -2,20 +2,21 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class RemoteInventoryItemTests
+public sealed class RemoteInventoryItemTests
 {
-    public static Task FormatSummaryWithoutMissingStyleAsync()
+    [Fact]
+    public Task FormatSummaryWithoutMissingStyleAsync()
     {
         RemoteInventoryItem sticker = new()
         {
             Id = "file_sticker",
-            Tag = VrchatFileTags.Sticker
+            Tag = VrchatFileTags.Sticker,
         };
         RemoteInventoryItem emoji = new()
         {
             Id = "file_emoji",
             Tag = VrchatFileTags.Emoji,
-            AnimationStyle = "like"
+            AnimationStyle = "like",
         };
         RemoteInventoryItem animated = new()
         {
@@ -23,7 +24,7 @@ internal static class RemoteInventoryItemTests
             Tag = VrchatFileTags.AnimatedEmoji,
             AnimationStyle = "spin",
             Frames = 12,
-            FramesOverTime = 24
+            FramesOverTime = 24,
         };
 
         TestAssert.Equal("Sticker - static", sticker.Summary, "sticker summary");

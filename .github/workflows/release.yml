@@ -51,7 +51,7 @@ jobs:
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v6

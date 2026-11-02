@@ -1,15 +1,15 @@
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using VRCInventoryManager.Core;
 using MediaColor = System.Windows.Media.Color;
 using MediaColors = System.Windows.Media.Colors;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class SpriteSheetFrameExtractorTests
+public sealed class SpriteSheetFrameExtractorTests
 {
-    public static Task ExtractSpriteSheetFramesInRowMajorOrderAsync()
+    [Fact]
+    public Task ExtractSpriteSheetFramesInRowMajorOrderAsync()
     {
         BitmapSource sheet = CreateSheet(
             MediaColors.Red,
@@ -31,7 +31,8 @@ internal static class SpriteSheetFrameExtractorTests
         return Task.CompletedTask;
     }
 
-    public static Task RejectInvalidSpriteSheetMetadataAsync()
+    [Fact]
+    public Task RejectInvalidSpriteSheetMetadataAsync()
     {
         BitmapSource sheet = CreateSheet(MediaColors.Red, MediaColors.Green, MediaColors.Blue, MediaColors.Yellow);
         TestAssert.False(SpriteSheetFrameExtractor.CanAnimate(1, 20), "one frame cannot animate");
@@ -41,7 +42,8 @@ internal static class SpriteSheetFrameExtractorTests
         return Task.CompletedTask;
     }
 
-    public static Task UsePowerOfTwoGridForSparseSpriteSheetsAsync()
+    [Fact]
+    public Task UsePowerOfTwoGridForSparseSpriteSheetsAsync()
     {
         TestAssert.Equal(4, SpriteSheetFrameExtractor.CalculateGrid(6), "six frame grid");
         TestAssert.Equal(4, SpriteSheetFrameExtractor.CalculateGrid(16), "sixteen frame grid");
@@ -68,11 +70,11 @@ internal static class SpriteSheetFrameExtractorTests
             int column = index % grid;
             int row = index / grid;
             MediaColor color = colors[index];
-            for (int y = row * cell; y < row * cell + cell; y++)
+            for (int y = row * cell; y < (row * cell) + cell; y++)
             {
-                for (int x = column * cell; x < column * cell + cell; x++)
+                for (int x = column * cell; x < (column * cell) + cell; x++)
                 {
-                    int offset = y * stride + x * 4;
+                    int offset = (y * stride) + (x * 4);
                     pixels[offset] = color.B;
                     pixels[offset + 1] = color.G;
                     pixels[offset + 2] = color.R;
@@ -81,7 +83,7 @@ internal static class SpriteSheetFrameExtractorTests
             }
         }
 
-        BitmapSource source = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+        var source = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, palette: null, pixels, stride);
         source.Freeze();
         return source;
     }

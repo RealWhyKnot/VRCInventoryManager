@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed record SpriteSheetResult(
+internal sealed record SpriteSheetResult(
     byte[] PngBytes,
     int Frames,
     int FramesOverTime,

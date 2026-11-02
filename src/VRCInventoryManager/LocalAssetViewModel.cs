@@ -6,26 +6,30 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager;
 
-internal sealed class LocalAssetViewModel(LocalAsset asset) : INotifyPropertyChanged
+internal sealed class LocalAssetViewModel : INotifyPropertyChanged
 {
-    private bool thumbnailRequested;
-    private BitmapSource? thumbnail;
-    private AnimatedImageFrames? animation;
-    private DispatcherTimer? animationTimer;
-    private int animationFrameIndex;
+    private bool _isThumbnailRequested;
+    private AnimatedImageFrames? _animation;
+    private DispatcherTimer? _animationTimer;
+    private int _animationFrameIndex;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public LocalAsset Asset { get; } = asset;
+    public LocalAssetViewModel(LocalAsset asset)
+    {
+        Asset = asset;
+    }
+
+    public LocalAsset Asset { get; }
 
     public BitmapSource? Thumbnail
     {
-        get => thumbnail;
+        get;
         private set
         {
-            if (!ReferenceEquals(thumbnail, value))
+            if (!ReferenceEquals(field, value))
             {
-                thumbnail = value;
+                field = value;
                 OnPropertyChanged();
             }
         }
@@ -39,64 +43,64 @@ internal sealed class LocalAssetViewModel(LocalAsset asset) : INotifyPropertyCha
 
     public string FolderName => Asset.Bucket;
 
-    public async Task EnsureThumbnailAsync(ImageThumbnailLoader loader)
+    public async Task EnsureThumbnailAsync(ImageThumbnailLoader loader, CancellationToken cancellationToken = default)
     {
-        if (thumbnailRequested)
+        if (_isThumbnailRequested)
         {
             return;
         }
 
-        thumbnailRequested = true;
+        _isThumbnailRequested = true;
         if (Asset.IsGif || Asset.HasSpriteSheetAnimation)
         {
-            animation = await loader.LoadLocalAnimationAsync(Asset);
-            if (animation is not null)
+            _animation = await loader.LoadLocalAnimationAsync(Asset, cancellationToken);
+            if (_animation is not null)
             {
-                Thumbnail = animation.FirstFrame;
+                Thumbnail = _animation.FirstFrame;
                 return;
             }
         }
 
-        Thumbnail = await loader.LoadLocalAsync(Asset);
+        Thumbnail = await loader.LoadLocalAsync(Asset, cancellationToken);
     }
 
     public void StartThumbnailAnimation()
     {
-        if (animation is not { HasAnimation: true })
+        if (_animation is not { HasAnimation: true })
         {
             return;
         }
 
-        animationTimer ??= new DispatcherTimer();
-        animationTimer.Tick -= AnimationTimer_Tick;
-        animationTimer.Tick += AnimationTimer_Tick;
-        animationFrameIndex = 0;
-        Thumbnail = animation.FirstFrame;
-        animationTimer.Interval = animation.Delays[0];
-        animationTimer.Start();
+        _animationTimer ??= new DispatcherTimer();
+        _animationTimer.Tick -= AnimationTimer_Tick;
+        _animationTimer.Tick += AnimationTimer_Tick;
+        _animationFrameIndex = 0;
+        Thumbnail = _animation.FirstFrame;
+        _animationTimer.Interval = _animation.Delays[0];
+        _animationTimer.Start();
     }
 
     public void StopThumbnailAnimation()
     {
-        animationTimer?.Stop();
-        animationFrameIndex = 0;
-        if (animation is not null)
+        _animationTimer?.Stop();
+        _animationFrameIndex = 0;
+        if (_animation is not null)
         {
-            Thumbnail = animation.FirstFrame;
+            Thumbnail = _animation.FirstFrame;
         }
     }
 
     private void AnimationTimer_Tick(object? sender, EventArgs e)
     {
-        if (animation is not { HasAnimation: true })
+        if (_animation is not { HasAnimation: true })
         {
-            animationTimer?.Stop();
+            _animationTimer?.Stop();
             return;
         }
 
-        animationFrameIndex = (animationFrameIndex + 1) % animation.Frames.Count;
-        Thumbnail = animation.Frames[animationFrameIndex];
-        animationTimer!.Interval = animation.Delays[Math.Min(animationFrameIndex, animation.Delays.Count - 1)];
+        _animationFrameIndex = (_animationFrameIndex + 1) % _animation.Frames.Count;
+        Thumbnail = _animation.Frames[_animationFrameIndex];
+        _animationTimer!.Interval = _animation.Delays[Math.Min(_animationFrameIndex, _animation.Delays.Count - 1)];
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

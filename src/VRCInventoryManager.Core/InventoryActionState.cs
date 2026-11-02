@@ -1,30 +1,30 @@
 namespace VRCInventoryManager.Core;
 
-public sealed record InventoryActionState(
-    bool UploadSticker,
-    bool UploadEmoji,
-    bool UploadAnimatedEmoji,
-    bool DeleteRemote,
-    bool Reconnect,
-    bool RefreshRemote)
+internal sealed record InventoryActionState(
+    bool CanUploadSticker,
+    bool CanUploadEmoji,
+    bool CanUploadAnimatedEmoji,
+    bool CanDeleteRemote,
+    bool CanReconnect,
+    bool CanRefreshRemote)
 {
     public static InventoryActionState For(
         LocalAsset? selectedAsset,
-        bool remoteSelected,
-        bool connected,
+        bool isRemoteSelected,
+        bool isConnected,
         int stickerCount,
         int emojiCount,
-        bool busy)
+        bool isBusy)
     {
-        bool idle = !busy;
-        bool canUpload = idle && connected && selectedAsset is not null;
-        bool stickerHasCapacity = stickerCount < 0 || stickerCount < RemoteInventorySnapshot.StickerLimit;
-        bool emojiHasCapacity = emojiCount < 0 || emojiCount < RemoteInventorySnapshot.EmojiLimit;
+        bool idle = !isBusy;
+        bool canUpload = idle && isConnected && selectedAsset is not null;
+        bool stickerHasCapacity = stickerCount is < 0 or < RemoteInventorySnapshot.StickerLimit;
+        bool emojiHasCapacity = emojiCount is < 0 or < RemoteInventorySnapshot.EmojiLimit;
         return new InventoryActionState(
             canUpload && stickerHasCapacity,
             canUpload && emojiHasCapacity,
             canUpload && emojiHasCapacity && selectedAsset!.CanUploadAsAnimatedEmoji,
-            idle && connected && remoteSelected,
+            idle && isConnected && isRemoteSelected,
             idle,
             idle);
     }

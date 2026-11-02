@@ -1,8 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using DrawingColor = System.Drawing.Color;
 using MediaColors = System.Windows.Media.Colors;
 
@@ -20,36 +18,30 @@ internal static class TestFiles
     public static void WritePng(string path, DrawingColor color)
     {
         using Bitmap bitmap = new(16, 16);
-        using Graphics graphics = Graphics.FromImage(bitmap);
+        using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(color);
         bitmap.Save(path, ImageFormat.Png);
     }
 
     public static void WritePng(string path, int width, int height, DrawingColor color)
     {
-        using Bitmap bitmap = new(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-        using Graphics graphics = Graphics.FromImage(bitmap);
+        using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
+        using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(color);
         bitmap.Save(path, ImageFormat.Png);
     }
 
     public static void WriteJpeg(string path, int width, int height, DrawingColor color)
     {
-        using Bitmap bitmap = new(width, height, System.Drawing.Imaging.PixelFormat.Format24bppRgb);
-        using Graphics graphics = Graphics.FromImage(bitmap);
+        using Bitmap bitmap = new(width, height, PixelFormat.Format24bppRgb);
+        using var graphics = Graphics.FromImage(bitmap);
         graphics.Clear(color);
         bitmap.Save(path, ImageFormat.Jpeg);
     }
 
-    public static void WriteAnimatedGif(string path)
-    {
-        WriteAnimatedGif(path, MediaColors.Red, MediaColors.Blue);
-    }
+    public static void WriteAnimatedGif(string path) => WriteAnimatedGif(path, MediaColors.Red, MediaColors.Blue);
 
-    public static void WriteAnimatedGif(string path, params System.Windows.Media.Color[] colors)
-    {
-        WriteAnimatedGif(path, 10, colors);
-    }
+    public static void WriteAnimatedGif(string path, params System.Windows.Media.Color[] colors) => WriteAnimatedGif(path, 10, colors);
 
     public static void WriteAnimatedGif(string path, int delayHundredths, params System.Windows.Media.Color[] colors)
     {
@@ -70,20 +62,13 @@ internal static class TestFiles
         for (int i = 0; i < colors.Length && i < 256; i++)
         {
             palette[i * 3] = colors[i].R;
-            palette[i * 3 + 1] = colors[i].G;
-            palette[i * 3 + 2] = colors[i].B;
+            palette[(i * 3) + 1] = colors[i].G;
+            palette[(i * 3) + 2] = colors[i].B;
         }
 
         stream.Write(palette, 0, palette.Length);
 
-        stream.WriteByte(0x21);
-        stream.WriteByte(0xFF);
-        stream.WriteByte(11);
-        WriteAscii(stream, "NETSCAPE2.0");
-        stream.WriteByte(3);
-        stream.WriteByte(1);
-        WriteUInt16(stream, 0);
-        stream.WriteByte(0);
+        WriteGifLoopExtension(stream);
 
         for (int i = 0; i < colors.Length; i++)
         {
@@ -109,28 +94,24 @@ internal static class TestFiles
         stream.WriteByte(0x3B);
     }
 
-    public static void WriteOptimizedPartialGif(string path)
+    private static void WriteGifLoopExtension(Stream stream)
     {
-        const string base64 =
-            "R0lGODlhEAAQAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQECgAAACwAAAAAEAAQAAAIHQABCBxIsKDBgwgTKlzIsKHDhxAjSpxIsaLFgQEBACH5BAUKAAIALAgABAAIAAgAgf8AAAAA/wAAAAAAAAgPAAMIHEiwoMGDCBMqTBgQADs=";
-        File.WriteAllBytes(path, Convert.FromBase64String(base64));
+        stream.WriteByte(0x21);
+        stream.WriteByte(0xFF);
+        stream.WriteByte(11);
+        WriteAscii(stream, "NETSCAPE2.0");
+        stream.WriteByte(3);
+        stream.WriteByte(1);
+        WriteUInt16(stream, 0);
+        stream.WriteByte(0);
+
     }
 
-    private static BitmapSource CreateBitmapSource(System.Windows.Media.Color color)
+    public static void WriteOptimizedPartialGif(string path)
     {
-        int width = 8;
-        int height = 8;
-        int stride = width * 4;
-        byte[] pixels = new byte[stride * height];
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            pixels[i] = color.B;
-            pixels[i + 1] = color.G;
-            pixels[i + 2] = color.R;
-            pixels[i + 3] = color.A;
-        }
-
-        return BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, pixels, stride);
+        const string Base64 =
+            "R0lGODlhEAAQAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQECgAAACwAAAAAEAAQAAAIHQABCBxIsKDBgwgTKlzIsKHDhxAjSpxIsaLFgQEBACH5BAUKAAIALAgABAAIAAgAgf8AAAAA/wAAAAAAAAgPAAMIHEiwoMGDCBMqTBgQADs=";
+        File.WriteAllBytes(path, Convert.FromBase64String(Base64));
     }
 
     private static byte[] EncodeSolidGifFrame(byte colorIndex)
@@ -167,7 +148,7 @@ internal static class TestFiles
             bytes.Add((byte)(bitBuffer & 0xFF));
         }
 
-        return bytes.ToArray();
+        return [.. bytes];
     }
 
     private static void WriteSubBlocks(Stream stream, byte[] bytes)

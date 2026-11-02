@@ -1,37 +1,14 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
+shopt -s inherit_errexit
 
-repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
-[ -f "$repo_root/build.ps1" ] || exit 0
-
-pwsh_bin=""
-for c in pwsh pwsh.exe powershell.exe powershell; do
-  if command -v "$c" >/dev/null 2>&1; then pwsh_bin="$c"; break; fi
-done
-
-if [ -z "$pwsh_bin" ]; then
-  echo "pre-push: PowerShell not found; skipping build check." >&2
-  exit 0
+root=$(git rev-parse --show-toplevel)
+cd "${root}"
+timeout 600 pwsh -NoProfile -File .github/lint/lint.ps1
+if [[ ${OSTYPE} == msys* || ${OSTYPE} == cygwin* ]]; then
+  windows_root=$(pwd -W)
+  MSYS_NO_PATHCONV=1 timeout 180 wsl --distribution "${LINT_WSL_DISTRO:?Set LINT_WSL_DISTRO to your lint distro}" \
+    --cd "${windows_root}" -- bash .githooks/check-shell
+else
+  bash .githooks/check-shell
 fi
-
-if ! command -v dotnet >/dev/null 2>&1; then
-  echo "pre-push: dotnet not found; skipping build check." >&2
-  exit 0
-fi
-
-echo "pre-push: running .github/lint/lint.ps1..." >&2
-"$pwsh_bin" -NoProfile -ExecutionPolicy Bypass -File "$repo_root/.github/lint/lint.ps1" -Check -ChangedOnly
-if [ "$?" -ne 0 ]; then
-  echo "pre-push BLOCKED: .github/lint/lint.ps1 failed." >&2
-  exit 1
-fi
-
-echo "pre-push: running build.ps1..." >&2
-"$pwsh_bin" -NoProfile -ExecutionPolicy Bypass -File "$repo_root/build.ps1"
-if [ "$?" -ne 0 ]; then
-  echo "pre-push BLOCKED: build.ps1 failed." >&2
-  exit 1
-fi
-
-echo "pre-push: build check passed." >&2
-exit 0

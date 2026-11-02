@@ -4,27 +4,20 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager;
 
-internal enum UpdateAnswer
+internal sealed partial class UpdateWindow : Window, IDisposable
 {
-    Later,
-    Skip,
-    Downloaded,
-}
-
-internal partial class UpdateWindow : Window
-{
-    private readonly GithubRelease release;
-    private readonly ReleaseVersion current;
-    private readonly CancellationTokenSource cancel = new();
+    private readonly GithubRelease _release;
+    private readonly ReleaseVersion _current;
+    private readonly CancellationTokenSource _cancel = new();
 
     public UpdateWindow(GithubRelease release)
     {
         InitializeComponent();
-        this.release = release;
-        ReleaseVersion.TryParse(release.TagName, out ReleaseVersion version);
-        ReleaseVersion.TryParse(Updater.VersionText, out current);
+        _release = release;
+        ReleaseVersion version = ReleaseVersion.TryParse(release.TagName, out ReleaseVersion parsed) ? parsed : default;
+        _current = ReleaseVersion.TryParse(Updater.VersionText, out ReleaseVersion current) ? current : default;
         HeadingText.Text = $"Version {version} is available";
-        BodyText.Text = $"You have {current}. Updating closes VRCInventoryManager, installs the new version and opens it again.";
+        BodyText.Text = $"You have {_current}. Updating closes VRCInventoryManager, installs the new version and opens it again.";
         NotesText.Text = $"What's new in {version}";
     }
 
@@ -40,13 +33,13 @@ internal partial class UpdateWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        cancel.Cancel();
+        _cancel.Cancel();
         base.OnClosed(e);
     }
 
     private async void Update_Click(object sender, RoutedEventArgs e)
     {
-        ReleaseVersion.TryParse(release.TagName, out ReleaseVersion version);
+        ReleaseVersion version = ReleaseVersion.TryParse(_release.TagName, out ReleaseVersion parsed) ? parsed : default;
         HeadingText.Text = $"Downloading {version}";
         BodyText.Text = "VRCInventoryManager closes and opens again when the download finishes.";
         DownloadBar.Visibility = Visibility.Visible;
@@ -56,22 +49,48 @@ internal partial class UpdateWindow : Window
         LaterButton.Content = "Cancel";
         try
         {
-            Downloaded = await Updater.DownloadAsync(release, new Progress<double>(f => DownloadBar.Value = f * 100), cancel.Token);
+            Downloaded = await Updater.DownloadAsync(_release, new Progress<double>(f => DownloadBar.Value = f * 100), _cancel.Token);
             Answer = UpdateAnswer.Downloaded;
             Close();
         }
-        catch (Exception ex) when (!cancel.IsCancellationRequested)
+        catch (System.IO.IOException exception)
         {
-            App.Log.Error("Update download failed.", ex);
-            HeadingText.Text = "The update didn't download";
-            HeadingText.Foreground = (System.Windows.Media.Brush)FindResource("WarningBrush");
-            BodyText.Text = $"{ex.Message}\n\nYou're still on {current}.";
-            DownloadBar.Visibility = Visibility.Collapsed;
-            LaterButton.Content = "Close";
+            ShowDownloadError(exception);
         }
-        catch (Exception)
+        catch (UnauthorizedAccessException exception)
         {
+            ShowDownloadError(exception);
         }
+        catch (System.Net.Http.HttpRequestException exception)
+        {
+            ShowDownloadError(exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            ShowDownloadError(exception);
+        }
+        catch (OperationCanceledException exception)
+        {
+            ShowDownloadError(exception);
+        }
+    }
+
+    public void Dispose() => _cancel.Dispose();
+
+    private void ShowDownloadError(Exception exception)
+    {
+        if (_cancel.IsCancellationRequested)
+        {
+            return;
+        }
+
+        App.Log.Error("Update download failed.", exception);
+        HeadingText.Text = "The update didn't download";
+        HeadingText.Foreground = (System.Windows.Media.Brush)FindResource("WarningBrush");
+        BodyText.Text = $"{exception.Message}\n\nYou're still on {_current}.";
+        DownloadBar.Visibility = Visibility.Collapsed;
+        LaterButton.Content = "Close";
+
     }
 
     private void Skip_Click(object sender, RoutedEventArgs e)
@@ -83,5 +102,5 @@ internal partial class UpdateWindow : Window
     private void Later_Click(object sender, RoutedEventArgs e) => Close();
 
     private void Notes_Click(object sender, RoutedEventArgs e) =>
-        Process.Start(new ProcessStartInfo(release.HtmlUrl) { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(_release.HtmlUrl) { UseShellExecute = true });
 }

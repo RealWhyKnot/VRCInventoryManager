@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed class LocalAssetScanner
+internal sealed class LocalAssetScanner
 {
     private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -10,10 +10,10 @@ public sealed class LocalAssetScanner
         ".jpeg",
         ".bmp",
         ".tif",
-        ".tiff"
+        ".tiff",
     };
 
-    public IReadOnlyList<LocalAsset> Scan(
+    public static IReadOnlyList<LocalAsset> Scan(
         string root,
         IReadOnlySet<string>? excludedTopLevelDirectories = null)
     {
@@ -43,23 +43,24 @@ public sealed class LocalAssetScanner
                     directory,
                     info.Extension,
                     info.Length,
-                    info.LastWriteTimeUtc)
+                    new DateTimeOffset(info.LastWriteTimeUtc))
                 {
-                    RelativeDirectory = LocalAssetFilter.NormalizeRelativeDirectory(relativeDirectory)
+                    RelativeDirectory = LocalAssetFilter.NormalizeRelativeDirectory(relativeDirectory),
                 });
             }
             catch (IOException)
             {
+                continue;
             }
             catch (UnauthorizedAccessException)
             {
+                continue;
             }
         }
 
-        return assets
+        return [.. assets
             .OrderByDescending(asset => asset.LastWriteTime)
-            .ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .ThenBy(asset => asset.Name, StringComparer.OrdinalIgnoreCase)];
     }
 
     private static IEnumerable<string> EnumerateFiles(
@@ -122,20 +123,7 @@ public sealed class LocalAssetScanner
         string normalizedRoot,
         string directory,
         string child,
-        IReadOnlySet<string>? excludedTopLevelDirectories)
-    {
-        if (excludedTopLevelDirectories is null || excludedTopLevelDirectories.Count == 0)
-        {
-            return false;
-        }
-
-        if (!string.Equals(NormalizeDirectory(directory), normalizedRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return excludedTopLevelDirectories.Contains(Path.GetFileName(child));
-    }
+        IReadOnlySet<string>? excludedTopLevelDirectories) => excludedTopLevelDirectories is not null && excludedTopLevelDirectories.Count != 0 && string.Equals(NormalizeDirectory(directory), normalizedRoot, StringComparison.OrdinalIgnoreCase) && excludedTopLevelDirectories.Contains(Path.GetFileName(child));
 
     private static string NormalizeDirectory(string path) =>
         Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);

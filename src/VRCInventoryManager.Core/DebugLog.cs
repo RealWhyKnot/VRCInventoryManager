@@ -3,21 +3,23 @@ using System.Text;
 
 namespace VRCInventoryManager.Core;
 
-public sealed class DebugLog : IDisposable
+internal sealed class DebugLog : IDisposable
 {
-    private readonly object gate = new();
-    private readonly StreamWriter? writer;
-    private bool disposed;
+    private readonly TimeProvider _timeProvider;
+    private readonly Lock _gate = new();
+    private readonly StreamWriter? _writer;
+    private bool _isDisposed;
 
-    private DebugLog(string? filePath, StreamWriter? writer)
+    private DebugLog(string? filePath, StreamWriter? writer, TimeProvider timeProvider)
     {
+        _timeProvider = timeProvider;
         FilePath = filePath;
-        this.writer = writer;
+        _writer = writer;
     }
 
     public string? FilePath { get; }
 
-    public static DebugLog Disabled { get; } = new(null, null);
+    public static DebugLog Disabled { get; } = new(filePath: null, writer: null, TimeProvider.System);
 
     public static string GetExecutableLogPath(string? processPath = null, string? fallbackDirectory = null)
     {
@@ -39,23 +41,19 @@ public sealed class DebugLog : IDisposable
         return Path.Combine(directory, "VRCInventoryManager.debug.log");
     }
 
-    public static DebugLog CreateNearExecutable()
+    public static DebugLog CreateNearExecutable(TimeProvider timeProvider)
     {
         string primaryPath = GetExecutableLogPath();
-        DebugLog? log = TryCreate(primaryPath, reset: true);
-        if (log is not null)
-        {
-            return log;
-        }
-
         string fallbackPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "VRCInventoryManager",
             "VRCInventoryManager.debug.log");
-        return TryCreate(fallbackPath, reset: true) ?? Disabled;
+        return TryCreate(primaryPath, reset: true, timeProvider)
+            ?? TryCreate(fallbackPath, reset: true, timeProvider)
+            ?? Disabled;
     }
 
-    public static DebugLog? TryCreate(string filePath, bool reset)
+    public static DebugLog? TryCreate(string filePath, bool reset, TimeProvider timeProvider)
     {
         try
         {
@@ -69,10 +67,10 @@ public sealed class DebugLog : IDisposable
             FileStream stream = new(filePath, mode, FileAccess.Write, FileShare.ReadWrite);
             StreamWriter streamWriter = new(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false))
             {
-                AutoFlush = true
+                AutoFlush = true,
             };
 
-            DebugLog log = new(filePath, streamWriter);
+            DebugLog log = new(filePath, streamWriter, timeProvider);
             log.Info($"Log opened for VRCInventoryManager {GetProductVersion()}.");
             log.Info($"Process path: {Environment.ProcessPath ?? "unknown"}");
             return log;
@@ -91,46 +89,43 @@ public sealed class DebugLog : IDisposable
 
     public void Warning(string message) => Write("WARN", message);
 
-    public void Error(string message, Exception? exception = null)
-    {
-        Write("ERROR", message);
-        if (exception is not null)
-        {
-            Write("ERROR", exception.ToString());
-        }
-    }
+    public void Error(string message, Exception? exception = null) =>
+        Write("ERROR", exception is null ? message : $"{message} | {exception}");
 
     public void Write(string level, string message)
     {
-        if (writer is null || disposed)
+        if (_writer is null || _isDisposed)
         {
             return;
         }
 
-        lock (gate)
+        lock (_gate)
         {
-            if (disposed)
+            if (_isDisposed)
             {
                 return;
             }
 
-            writer.WriteLine($"{DateTimeOffset.Now:O} [{level}] {message}");
+            _writer.WriteLine($"{_timeProvider.GetLocalNow():O} [{EscapeNewlines(level)}] {EscapeNewlines(message)}");
         }
     }
 
     public void Dispose()
     {
-        lock (gate)
+        lock (_gate)
         {
-            if (disposed)
+            if (_isDisposed)
             {
                 return;
             }
 
-            disposed = true;
-            writer?.Dispose();
+            _isDisposed = true;
+            _writer?.Dispose();
         }
     }
+
+    private static string EscapeNewlines(string text) =>
+        text.Replace("\r", @"\r", StringComparison.Ordinal).Replace("\n", @"\n", StringComparison.Ordinal);
 
     private static string GetProductVersion()
     {

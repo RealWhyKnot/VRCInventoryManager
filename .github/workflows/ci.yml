@@ -35,38 +35,33 @@ jobs:
       contents: read
     uses: RealWhyKnot/workflows/.github/workflows/repo-checks.yml@v1
 
-  lint:
-    name: lint (changed)
-    runs-on: windows-2025-vs2026
-    timeout-minutes: 15
-
+  shell:
+    name: shell checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
-      - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-lint-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
-          restore-keys: |
-            nuget-lint-${{ runner.os }}-
-
-      - name: Run changed lint check
-        shell: pwsh
+      - name: Install shell tools
+        shell: bash
         run: |
-          $base = '${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}'
-          if ([string]::IsNullOrWhiteSpace($base) -or $base -match '^0+$') {
-            $base = 'origin/main'
-          }
-          .\.github\lint\lint.ps1 -Check -ChangedOnly -ChangedBase $base
+          #!/usr/bin/env bash
+          set -euo pipefail
+          shopt -s inherit_errexit
+          sudo apt-get update
+          sudo apt-get install -y shellcheck shfmt
+
+      - name: Set up actionlint
+        uses: raven-actions/actionlint@v2
+
+      - name: Run shell gate
+        shell: bash
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          shopt -s inherit_errexit
+          bash .githooks/check-shell
 
   build:
     name: build, tests, and publish smoke
@@ -82,7 +77,7 @@ jobs:
       - name: Set up .NET 10 SDK
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
@@ -92,40 +87,39 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
-      - name: Validate workflow scripts
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install PSScriptAnalyzer
         shell: pwsh
         run: |
-          ./.github/scripts/Test-UpdateChangelog.ps1
-          ./.github/scripts/Test-GenerateReleaseNotes.ps1
-          ./.github/scripts/Test-NightlyBetaPlan.ps1
+          Install-PSResource -Name PSScriptAnalyzer -Version 1.25.0 -TrustRepository -Quiet
 
-      - name: Restore
-        run: dotnet restore VRCInventoryManager.slnx
-
-      - name: Build
-        run: dotnet build VRCInventoryManager.slnx --configuration Release --no-restore
-
-      - name: Run tests
-        run: dotnet run --project tests/VRCInventoryManager.Tests/VRCInventoryManager.Tests.csproj --configuration Release --no-build
+      - name: Run full gate
+        shell: bash
+        run: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          shopt -s inherit_errexit
+          timeout 600 pwsh -NoProfile -File .github/lint/lint.ps1
 
       - name: Publish app
         shell: pwsh
         run: |
-          dotnet publish src/VRCInventoryManager/VRCInventoryManager.csproj `
-            --configuration Release `
-            --runtime win-x64 `
-            --self-contained true `
-            --output stage/app `
-            -p:PublishSingleFile=true `
-            -p:EnableCompressionInSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:PublishReadyToRun=false `
-            -p:DebugType=None `
-            -p:DebugSymbols=false
+          $publishArguments = @(
+              'publish', 'src/VRCInventoryManager/VRCInventoryManager.csproj',
+              '--configuration', 'Release', '--runtime', 'win-x64', '--self-contained', 'true', '--output', 'stage/app',
+              '-p:PublishSingleFile=true', '-p:EnableCompressionInSingleFile=true',
+              '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishReadyToRun=false',
+              '-p:DebugType=None', '-p:DebugSymbols=false'
+          )
+          dotnet @publishArguments
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit $LASTEXITCODE" }
           $files = @(Get-ChildItem stage/app -File)
           if ($files.Count -ne 1 -or $files[0].Name -ne 'VRCInventoryManager.exe') {
-            throw 'Publish output must contain exactly VRCInventoryManager.exe.'
+              throw 'Publish output must contain exactly VRCInventoryManager.exe.'
           }
 
       - name: Upload app artifact

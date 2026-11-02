@@ -5,23 +5,26 @@ using SQLitePCL;
 
 namespace VRCInventoryManager.Core;
 
-public sealed class VrcxCookieProvider
+internal sealed class VrcxCookieProvider
 {
-    private readonly string databasePath;
-    private readonly string versionPath;
+    private readonly string _databasePath;
+    private readonly string _versionPath;
+    private readonly string _temporaryDirectory;
 
-    public VrcxCookieProvider(string? databasePath = null, string? versionPath = null)
+    public VrcxCookieProvider(string? databasePath = null, string? versionPath = null, string? temporaryDirectory = null)
     {
-        KnownFolderPaths folders = KnownFolders.Resolve();
-        this.databasePath = string.IsNullOrWhiteSpace(databasePath) ? folders.VrcxDatabasePath : databasePath;
-        this.versionPath = string.IsNullOrWhiteSpace(versionPath) ? folders.VrcxVersionPath : versionPath;
+        _temporaryDirectory = temporaryDirectory ?? Path.GetTempPath();
+        KnownFolderPaths? folders = string.IsNullOrWhiteSpace(databasePath) || string.IsNullOrWhiteSpace(versionPath)
+            ? KnownFolders.Resolve() : null;
+        _databasePath = string.IsNullOrWhiteSpace(databasePath) ? folders!.VrcxDatabasePath : databasePath;
+        _versionPath = string.IsNullOrWhiteSpace(versionPath) ? folders!.VrcxVersionPath : versionPath;
     }
 
     public VrcxAuthSession LoadDefaultSession()
     {
-        if (!File.Exists(databasePath))
+        if (!File.Exists(_databasePath))
         {
-            throw new FileNotFoundException("VRCX cookie database was not found.", databasePath);
+            throw new FileNotFoundException("VRCX cookie database was not found.", _databasePath);
         }
 
         string encodedCookies = ReadEncodedCookies();
@@ -32,17 +35,15 @@ public sealed class VrcxCookieProvider
 
     public static VrcxAuthCookies ParseCookies(string encodedCookies)
     {
-        string json;
-        try
+        byte[] decoded = new byte[encodedCookies.Length];
+        if (!Convert.TryFromBase64String(encodedCookies, decoded, out int bytesWritten))
         {
-            json = Encoding.UTF8.GetString(Convert.FromBase64String(encodedCookies));
-        }
-        catch (FormatException ex)
-        {
-            throw new InvalidOperationException("VRCX cookie payload was not valid base64.", ex);
+            throw new InvalidOperationException("VRCX cookie payload was not valid base64.");
         }
 
-        using JsonDocument document = JsonDocument.Parse(json);
+        string json = Encoding.UTF8.GetString(decoded, 0, bytesWritten);
+
+        using var document = JsonDocument.Parse(json);
         Dictionary<string, string> values = new(StringComparer.OrdinalIgnoreCase);
         if (document.RootElement.ValueKind == JsonValueKind.Array)
         {
@@ -74,13 +75,10 @@ public sealed class VrcxCookieProvider
             }
         }
 
-        if (!values.TryGetValue("auth", out string? auth) || string.IsNullOrWhiteSpace(auth) ||
-            !values.TryGetValue("twoFactorAuth", out string? twoFactorAuth) || string.IsNullOrWhiteSpace(twoFactorAuth))
-        {
-            throw new InvalidOperationException("VRCX cookie store did not contain usable VRChat auth cookies.");
-        }
-
-        return new VrcxAuthCookies(auth, twoFactorAuth);
+        return !values.TryGetValue("auth", out string? auth) || string.IsNullOrWhiteSpace(auth) ||
+            !values.TryGetValue("twoFactorAuth", out string? twoFactorAuth) || string.IsNullOrWhiteSpace(twoFactorAuth)
+            ? throw new InvalidOperationException("VRCX cookie store did not contain usable VRChat auth cookies.")
+            : new VrcxAuthCookies(auth, twoFactorAuth);
     }
 
     private static string? ReadStringProperty(JsonElement element, string name)
@@ -119,9 +117,9 @@ public sealed class VrcxCookieProvider
     {
         try
         {
-            return ReadEncodedCookiesFromDatabase(databasePath);
+            return ReadEncodedCookiesFromDatabase(_databasePath);
         }
-        catch (SqliteException ex) when (ex.SqliteErrorCode is raw.SQLITE_BUSY or raw.SQLITE_LOCKED or raw.SQLITE_READONLY or raw.SQLITE_CANTOPEN)
+        catch (SqliteException exception) when (exception.SqliteErrorCode is raw.SQLITE_BUSY or raw.SQLITE_LOCKED or raw.SQLITE_READONLY or raw.SQLITE_CANTOPEN)
         {
             return ReadEncodedCookiesFromCopy();
         }
@@ -129,10 +127,10 @@ public sealed class VrcxCookieProvider
 
     private string ReadEncodedCookiesFromCopy()
     {
-        string tempPath = Path.Combine(Path.GetTempPath(), $"vrcx-cookies-{Guid.NewGuid():N}.sqlite3");
+        string tempPath = Path.Combine(_temporaryDirectory, $"vrcx-cookies-{Guid.NewGuid():N}.sqlite3");
         try
         {
-            File.Copy(databasePath, tempPath, overwrite: true);
+            File.Copy(_databasePath, tempPath, overwrite: true);
             return ReadEncodedCookiesFromDatabase(tempPath);
         }
         finally
@@ -145,6 +143,7 @@ public sealed class VrcxCookieProvider
                 }
                 catch (IOException)
                 {
+                    continue;
                 }
             }
         }
@@ -157,7 +156,7 @@ public sealed class VrcxCookieProvider
             DataSource = path,
             Mode = SqliteOpenMode.ReadOnly,
             Pooling = false,
-            DefaultTimeout = 5
+            DefaultTimeout = 5,
         };
 
         using SqliteConnection connection = new(builder.ToString());
@@ -172,12 +171,12 @@ public sealed class VrcxCookieProvider
 
     private string LoadUserAgent()
     {
-        if (!File.Exists(versionPath))
+        if (!File.Exists(_versionPath))
         {
             return "VRCX";
         }
 
-        string version = File.ReadAllText(versionPath).Trim();
+        string version = File.ReadAllText(_versionPath).Trim();
         return string.IsNullOrWhiteSpace(version) ? "VRCX" : version;
     }
 }

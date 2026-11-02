@@ -1,8 +1,8 @@
 using System.Windows.Media.Imaging;
 
-namespace VRCInventoryManager.Core;
+namespace VRCInventoryManager;
 
-public sealed record AnimatedImageFrames(IReadOnlyList<BitmapSource> Frames, IReadOnlyList<TimeSpan> Delays)
+internal sealed record AnimatedImageFrames(IReadOnlyList<BitmapSource> Frames, IReadOnlyList<TimeSpan> Delays)
 {
     public BitmapSource FirstFrame => Frames.Count > 0
         ? Frames[0]

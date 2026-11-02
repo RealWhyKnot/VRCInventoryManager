@@ -3,9 +3,10 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class FolderTreeBuilderTests
+public sealed class FolderTreeBuilderTests
 {
-    public static Task BuildFolderTreeWithRollupCountsAsync()
+    [Fact]
+    public Task BuildFolderTreeWithRollupCountsAsync()
     {
         string root = @"C:\Photos";
         LocalAsset[] assets =
@@ -14,7 +15,7 @@ internal static class FolderTreeBuilderTests
             CreateAsset(root, "june-a.png", "2026-06"),
             CreateAsset(root, "june-b.png", "2026-06"),
             CreateAsset(root, "quest.png", Path.Combine("2026-06", "Quest")),
-            CreateAsset(root, "may.png", "2026-05")
+            CreateAsset(root, "may.png", "2026-05"),
         ];
 
         FolderNode tree = FolderTreeBuilder.Build(assets, root);
@@ -55,7 +56,7 @@ internal static class FolderTreeBuilderTests
             100,
             DateTimeOffset.UnixEpoch)
         {
-            RelativeDirectory = relativeDirectory
+            RelativeDirectory = relativeDirectory,
         };
     }
 }

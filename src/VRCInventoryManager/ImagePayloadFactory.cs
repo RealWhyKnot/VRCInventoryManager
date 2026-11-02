@@ -1,17 +1,18 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.IO;
 
-namespace VRCInventoryManager.Core;
+namespace VRCInventoryManager;
 
-public static class ImagePayloadFactory
+internal static class ImagePayloadFactory
 {
     public const int MaxInventoryImageSize = 1024;
     public const int MaxUploadBytes = 10 * 1024 * 1024;
 
     public static byte[] GetPngPayload(string path)
     {
-        using Image source = Image.FromFile(path);
+        using var source = Image.FromFile(path);
         if (CanUseOriginalPng(path, source))
         {
             return File.ReadAllBytes(path);
@@ -28,7 +29,7 @@ public static class ImagePayloadFactory
             throw new InvalidOperationException("Animated sprite sheet upload requires a PNG file.");
         }
 
-        using Image source = Image.FromFile(path);
+        using var source = Image.FromFile(path);
         if (source.Width != source.Height)
         {
             throw new InvalidOperationException("Animated sprite sheet upload requires a square PNG.");
@@ -45,7 +46,7 @@ public static class ImagePayloadFactory
 
     public static bool NeedsStaticNormalization(string path)
     {
-        using Image source = Image.FromFile(path);
+        using var source = Image.FromFile(path);
         return !CanUseOriginalPng(path, source);
     }
 
@@ -58,7 +59,7 @@ public static class ImagePayloadFactory
     private static byte[] RenderPng(Image source, int width, int height)
     {
         using Bitmap bitmap = new(width, height, PixelFormat.Format32bppArgb);
-        using Graphics graphics = Graphics.FromImage(bitmap);
+        using var graphics = Graphics.FromImage(bitmap);
         ConfigureGraphics(graphics);
         graphics.Clear(Color.Transparent);
         graphics.DrawImage(source, 0, 0, width, height);

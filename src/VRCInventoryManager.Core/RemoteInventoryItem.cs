@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed record RemoteInventoryItem
+internal sealed record RemoteInventoryItem
 {
     public string Id { get; init; } = string.Empty;
     public string Tag { get; init; } = string.Empty;
@@ -20,7 +20,7 @@ public sealed record RemoteInventoryItem
         VrchatFileTags.Sticker => "Sticker",
         VrchatFileTags.Emoji => "Emoji",
         VrchatFileTags.AnimatedEmoji => "Animated Emoji",
-        _ => Tag
+        _ => Tag,
     };
 
     public string Summary

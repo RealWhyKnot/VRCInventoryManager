@@ -2,13 +2,15 @@ using System.Text.Json;
 
 namespace VRCInventoryManager.Core;
 
-public sealed class AppSettingsStore
+internal sealed class AppSettingsStore
 {
-    private readonly string settingsPath;
+    private static readonly JsonSerializerOptions SerializerOptions = new() { WriteIndented = true };
+
+    private readonly string _settingsPath;
 
     public AppSettingsStore(string? settingsPath = null)
     {
-        this.settingsPath = settingsPath ?? Path.Combine(
+        _settingsPath = settingsPath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "VRCInventoryManager",
             "settings.json");
@@ -16,14 +18,14 @@ public sealed class AppSettingsStore
 
     public AppSettings Load()
     {
-        if (!File.Exists(settingsPath))
+        if (!File.Exists(_settingsPath))
         {
             return new AppSettings();
         }
 
         try
         {
-            string json = File.ReadAllText(settingsPath);
+            string json = File.ReadAllText(_settingsPath);
             return JsonSerializer.Deserialize<AppSettings>(json) ?? new AppSettings();
         }
         catch (JsonException)
@@ -38,22 +40,22 @@ public sealed class AppSettingsStore
 
     public void Save(AppSettings settings)
     {
-        string? directory = Path.GetDirectoryName(settingsPath);
+        string? directory = Path.GetDirectoryName(_settingsPath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
         }
 
-        string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
-        string tempPath = settingsPath + ".tmp";
+        string json = JsonSerializer.Serialize(settings, SerializerOptions);
+        string tempPath = _settingsPath + ".tmp";
         File.WriteAllText(tempPath, json);
-        if (File.Exists(settingsPath))
+        if (File.Exists(_settingsPath))
         {
-            File.Replace(tempPath, settingsPath, null);
+            File.Replace(tempPath, _settingsPath, destinationBackupFileName: null);
         }
         else
         {
-            File.Move(tempPath, settingsPath);
+            File.Move(tempPath, _settingsPath);
         }
     }
 }

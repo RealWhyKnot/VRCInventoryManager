@@ -1,10 +1,13 @@
+using System.Text.Json.Serialization;
+
 namespace VRCInventoryManager.Core;
 
-public sealed record AppSettings
+internal sealed record AppSettings
 {
     public string LocalRoot { get; init; } = string.Empty;
 
-    public bool UpdateCheck { get; init; } = true;
+    [JsonPropertyName("UpdateCheck")]
+    public bool IsUpdateCheckEnabled { get; init; } = true;
 
     public string? SkippedUpdate { get; init; }
 }

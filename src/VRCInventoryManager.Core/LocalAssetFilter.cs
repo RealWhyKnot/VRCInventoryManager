@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public static class LocalAssetFilter
+internal static class LocalAssetFilter
 {
     public static bool Matches(
         LocalAsset asset,
@@ -34,13 +34,10 @@ public static class LocalAssetFilter
 
     public static string NormalizeRelativeDirectory(string? relativeDirectory)
     {
-        if (string.IsNullOrWhiteSpace(relativeDirectory) ||
-            string.Equals(relativeDirectory, ".", StringComparison.Ordinal))
-        {
-            return string.Empty;
-        }
-
-        return relativeDirectory
+        return string.IsNullOrWhiteSpace(relativeDirectory) ||
+            string.Equals(relativeDirectory, ".", StringComparison.Ordinal)
+            ? string.Empty
+            : relativeDirectory
             .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
             .Trim(Path.DirectorySeparatorChar);
     }

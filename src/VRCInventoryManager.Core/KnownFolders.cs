@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public static class KnownFolders
+internal static class KnownFolders
 {
     public static string DefaultPhotosFolder => Resolve().PhotosFolder;
     public static string DefaultEmojiFolder => Resolve().EmojiFolder;
@@ -13,7 +13,7 @@ public static class KnownFolders
     {
         "Emoji",
         "Stickers",
-        "Prints"
+        "Prints",
     };
 
     public static KnownFolderPaths Resolve(VrcxPathResolverOptions? options = null) =>

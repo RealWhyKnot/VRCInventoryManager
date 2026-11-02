@@ -1,49 +1,49 @@
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
-namespace VRCInventoryManager.Core;
+using VRCInventoryManager.Core;
 
-public sealed class VrchatApiClient
+namespace VRCInventoryManager;
+
+internal sealed class VrchatApiClient
 {
     private static readonly Uri DefaultBaseUri = new("https://api.vrchat.cloud/api/1/");
 
-    private readonly HttpClient httpClient;
-    private readonly VrcxAuthCookies cookies;
-    private readonly string userAgent;
-    private readonly GifSpriteSheetConverter spriteSheetConverter;
+    private readonly HttpClient _httpClient;
+    private readonly VrcxAuthCookies _cookies;
+    private readonly string _userAgent;
 
     public VrchatApiClient(
         HttpClient httpClient,
         VrcxAuthCookies cookies,
-        string userAgent,
-        GifSpriteSheetConverter? spriteSheetConverter = null)
+        string userAgent)
     {
-        this.httpClient = httpClient;
-        this.cookies = cookies;
-        this.userAgent = userAgent;
-        this.spriteSheetConverter = spriteSheetConverter ?? new GifSpriteSheetConverter();
+        _httpClient = httpClient;
+        _cookies = cookies;
+        _userAgent = userAgent;
 
-        if (httpClient.BaseAddress is null)
-        {
-            httpClient.BaseAddress = DefaultBaseUri;
-        }
+        httpClient.BaseAddress ??= DefaultBaseUri;
     }
 
     public async Task<bool> CheckAuthAsync(CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, "auth/user", null, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, "auth/user", content: null, cancellationToken);
         return response.IsSuccessStatusCode;
     }
 
     public async Task FetchConfigAsync(CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, "config", null, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, "config", content: null, cancellationToken);
         await EnsureSuccessAsync(response, "Fetch config", cancellationToken);
     }
 
     public async Task<RemoteInventorySnapshot> GetInventorySnapshotAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         IReadOnlyList<RemoteInventoryItem> stickers = await ListFilesAsync(VrchatFileTags.Sticker, cancellationToken);
         IReadOnlyList<RemoteInventoryItem> emojis = await ListFilesAsync(VrchatFileTags.Emoji, cancellationToken);
         IReadOnlyList<RemoteInventoryItem> animatedEmojis = await ListFilesAsync(VrchatFileTags.AnimatedEmoji, cancellationToken);
@@ -52,8 +52,9 @@ public sealed class VrchatApiClient
 
     public async Task<IReadOnlyList<RemoteInventoryItem>> ListFilesAsync(string tag, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         string path = $"files?n=100&tag={Uri.EscapeDataString(tag)}";
-        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, path, null, cancellationToken);
+        using HttpResponseMessage response = await SendAsync(HttpMethod.Get, path, content: null, cancellationToken);
         await EnsureSuccessAsync(response, $"List {tag}", cancellationToken);
 
         await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -69,39 +70,37 @@ public sealed class VrchatApiClient
 
     public async Task<UploadResult> UploadStickerAsync(string path, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         byte[] bytes = ImagePayloadFactory.GetPngPayload(path);
-        return await UploadImageAsync(bytes, VrchatFileTags.Sticker, null, null, null, null, cancellationToken);
+        return await UploadImageAsync(bytes, VrchatFileTags.Sticker, animationStyle: null, loopStyle: null, frames: null, framesOverTime: null, cancellationToken);
     }
 
     public async Task<UploadResult> UploadStaticEmojiAsync(string path, string animationStyle, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!LocalAsset.CanUploadPathAsStaticEmoji(path))
         {
             throw new InvalidOperationException("Animated emoji sources must be uploaded with Upload Animated Emoji.");
         }
 
         byte[] bytes = ImagePayloadFactory.GetPngPayload(path);
-        return await UploadImageAsync(bytes, VrchatFileTags.Emoji, animationStyle, null, null, null, cancellationToken);
+        return await UploadImageAsync(bytes, VrchatFileTags.Emoji, animationStyle, loopStyle: null, frames: null, framesOverTime: null, cancellationToken);
     }
 
     public async Task<UploadResult> UploadEmojiAsync(string path, string animationStyle, CancellationToken cancellationToken = default)
     {
-        if (string.Equals(Path.GetExtension(path), ".gif", StringComparison.OrdinalIgnoreCase))
-        {
-            return await UploadAnimatedEmojiAsync(path, animationStyle, cancellationToken);
-        }
-
-        if (LocalAsset.TryGetSpriteSheetAnimationMetadata(path, out int frames, out int framesOverTime))
-        {
-            return await UploadAnimatedEmojiSpriteSheetAsync(path, animationStyle, frames, framesOverTime, cancellationToken);
-        }
-
-        return await UploadStaticEmojiAsync(path, animationStyle, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return string.Equals(Path.GetExtension(path), ".gif", StringComparison.OrdinalIgnoreCase)
+            ? await UploadAnimatedEmojiAsync(path, animationStyle, cancellationToken)
+            : LocalAsset.TryGetSpriteSheetAnimationMetadata(path, out int frames, out int framesOverTime)
+            ? await UploadAnimatedEmojiSpriteSheetAsync(path, animationStyle, frames, framesOverTime, cancellationToken)
+            : await UploadStaticEmojiAsync(path, animationStyle, cancellationToken);
     }
 
     public async Task<UploadResult> UploadAnimatedEmojiAsync(string gifPath, string animationStyle, CancellationToken cancellationToken = default)
     {
-        SpriteSheetResult spriteSheet = spriteSheetConverter.Convert(gifPath);
+        cancellationToken.ThrowIfCancellationRequested();
+        SpriteSheetResult spriteSheet = GifSpriteSheetConverter.Convert(gifPath);
         return await UploadImageAsync(
             spriteSheet.PngBytes,
             VrchatFileTags.AnimatedEmoji,
@@ -119,6 +118,7 @@ public sealed class VrchatApiClient
         int framesOverTime,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (frames <= 1)
         {
             throw new ArgumentOutOfRangeException(nameof(frames), "Animated emoji upload requires at least two frames.");
@@ -147,12 +147,13 @@ public sealed class VrchatApiClient
 
     public async Task DeleteFileAsync(string fileId, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(fileId))
         {
             throw new ArgumentException("File id is required.", nameof(fileId));
         }
 
-        using HttpResponseMessage response = await SendAsync(HttpMethod.Delete, $"file/{Uri.EscapeDataString(fileId)}", null, cancellationToken);
+        using HttpResponseMessage response = await SendAsync(HttpMethod.Delete, $"file/{Uri.EscapeDataString(fileId)}", content: null, cancellationToken);
         await EnsureSuccessAsync(response, "Delete file", cancellationToken);
     }
 
@@ -166,29 +167,20 @@ public sealed class VrchatApiClient
         CancellationToken cancellationToken)
     {
         using MultipartFormDataContent content = new();
-        content.Add(new StringContent(tag), "tag");
-        content.Add(new StringContent("square"), "maskTag");
-        if (!string.IsNullOrWhiteSpace(animationStyle))
-        {
-            content.Add(new StringContent(animationStyle), "animationStyle");
-        }
+        using StringContent tagContent = new(tag);
+        using StringContent maskContent = new("square");
+        using StringContent? animationContent = string.IsNullOrWhiteSpace(animationStyle) ? null : new(animationStyle);
+        using StringContent? framesContent = frames.HasValue ? new(frames.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)) : null;
+        using StringContent? rateContent = framesOverTime.HasValue ? new(framesOverTime.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)) : null;
+        using StringContent? loopContent = string.IsNullOrWhiteSpace(loopStyle) ? null : new(loopStyle);
+        content.Add(tagContent, "tag");
+        content.Add(maskContent, "maskTag");
+        if (animationContent is not null) { content.Add(animationContent, "animationStyle"); }
+        if (framesContent is not null) { content.Add(framesContent, "frames"); }
+        if (rateContent is not null) { content.Add(rateContent, "framesOverTime"); }
+        if (loopContent is not null) { content.Add(loopContent, "loopStyle"); }
 
-        if (frames.HasValue)
-        {
-            content.Add(new StringContent(frames.Value.ToString()), "frames");
-        }
-
-        if (framesOverTime.HasValue)
-        {
-            content.Add(new StringContent(framesOverTime.Value.ToString()), "framesOverTime");
-        }
-
-        if (!string.IsNullOrWhiteSpace(loopStyle))
-        {
-            content.Add(new StringContent(loopStyle), "loopStyle");
-        }
-
-        ByteArrayContent fileContent = new(pngBytes);
+        using ByteArrayContent fileContent = new(pngBytes);
         fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
         content.Add(fileContent, "file", "blob");
 
@@ -209,12 +201,12 @@ public sealed class VrchatApiClient
         HttpContent? content,
         CancellationToken cancellationToken)
     {
-        HttpRequestMessage request = new(method, path);
-        request.Headers.TryAddWithoutValidation("User-Agent", userAgent);
-        request.Headers.TryAddWithoutValidation("Cookie", cookies.ToCookieHeader());
+        using HttpRequestMessage request = new(method, path);
+        request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
+        request.Headers.TryAddWithoutValidation("Cookie", _cookies.ToCookieHeader());
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Content = content;
-        return await httpClient.SendAsync(request, cancellationToken);
+        return await _httpClient.SendAsync(request, cancellationToken);
     }
 
     private static async Task EnsureSuccessAsync(HttpResponseMessage response, string action, CancellationToken cancellationToken)
@@ -244,7 +236,7 @@ public sealed class VrchatApiClient
             foreach (JsonElement version in versions.EnumerateArray())
             {
                 if (!createdAt.HasValue && version.TryGetProperty("created_at", out JsonElement createdElement) &&
-                    DateTimeOffset.TryParse(createdElement.GetString(), out DateTimeOffset parsed))
+                    DateTimeOffset.TryParse(createdElement.GetString(), System.Globalization.CultureInfo.InvariantCulture, out DateTimeOffset parsed))
                 {
                     createdAt = parsed;
                 }
@@ -276,7 +268,7 @@ public sealed class VrchatApiClient
             Frames = GetInt(element, "frames"),
             FramesOverTime = GetInt(element, "framesOverTime"),
             CreatedAt = createdAt,
-            Status = status
+            Status = status,
         };
     }
 
@@ -308,11 +300,8 @@ public sealed class VrchatApiClient
 
     private static int? GetInt(JsonElement element, string propertyName)
     {
-        if (!element.TryGetProperty(propertyName, out JsonElement property))
-        {
-            return null;
-        }
-
-        return property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out int value) ? value : null;
+        return !element.TryGetProperty(propertyName, out JsonElement property)
+            ? null
+            : property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out int value) ? value : null;
     }
 }

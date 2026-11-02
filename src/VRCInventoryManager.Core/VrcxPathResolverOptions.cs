@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed class VrcxPathResolverOptions
+internal sealed class VrcxPathResolverOptions
 {
     public string? AppDataPath { get; init; }
 

@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed record KnownFolderPaths(
+internal sealed record KnownFolderPaths(
     string PhotosFolder,
     string EmojiFolder,
     string StickersFolder,

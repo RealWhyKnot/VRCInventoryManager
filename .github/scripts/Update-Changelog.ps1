@@ -1,10 +1,7 @@
-<#
-.SYNOPSIS
-  Maintains CHANGELOG.md from conventional commit subjects.
-#>
+#!/usr/bin/env pwsh
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory = $true)]
     [ValidateSet('Append', 'Promote', 'Notes')]
     [string] $Mode,
 
@@ -18,34 +15,38 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-if (-not $RepoRoot) {
-    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-}
-
-$ChangelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
-if (-not (Test-Path -LiteralPath $ChangelogPath)) {
-    throw "CHANGELOG.md not found at $ChangelogPath"
-}
-
 function Read-TextUtf8 {
+    [CmdletBinding()]
+    [OutputType([string])]
     param([string] $Path)
     return [System.IO.File]::ReadAllText($Path, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Write-TextUtf8 {
+    [CmdletBinding()]
+    [OutputType([void])]
     param([string] $Path, [string] $Content)
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Get-CentralTimeZone {
+    [CmdletBinding()]
+    [OutputType([System.TimeZoneInfo])]
+    param()
     foreach ($id in @('Central Standard Time', 'America/Chicago')) {
         try { return [System.TimeZoneInfo]::FindSystemTimeZoneById($id) }
-        catch { }
+        catch [System.TimeZoneNotFoundException] {
+            continue
+        } catch [System.InvalidTimeZoneException] {
+            continue
+        }
     }
     throw 'Could not resolve the America/Chicago release time zone.'
 }
 
 function Get-ReleaseDateStamp {
+    [CmdletBinding()]
+    [OutputType([string])]
     param([datetime] $NowUtc, [string] $Format)
 
     $utc = $NowUtc
@@ -56,20 +57,25 @@ function Get-ReleaseDateStamp {
     return $central.ToString($Format, [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
-function Strip-BuildStamp {
+function Remove-BuildStamp {
+    [CmdletBinding()]
+    [OutputType([string])]
     param([string] $Subject)
     return ($Subject -replace ' \(\d{4}\.\d+\.\d+\.\d+(-[A-Fa-f0-9]{4,8})?\)$', '').Trim()
 }
 
 function Convert-SubjectToEntry {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
     param([string] $Sha, [string] $Subject)
 
-    $stripped = Strip-BuildStamp -Subject $Subject
+    $stripped = Remove-BuildStamp -Subject $Subject
     if ([string]::IsNullOrWhiteSpace($stripped)) { return $null }
     if ($stripped -match '\[skip changelog\]') { return $null }
     if ($stripped -match '^Merge ') { return $null }
 
-    $pattern = '^(?<type>feat|fix|perf|refactor|docs|build|ci|chore|test|revert)(?:\((?<scope>[^)]+)\))?(?<bang>!)?:\s+(?<desc>.+)$'
+    $types = 'feat|fix|perf|refactor|docs|build|ci|chore|test|revert'
+    $pattern = '^(?<type>' + $types + ')(?:\((?<scope>[^)]+)\))?(?<bang>!)?:\s+(?<desc>.+)$'
     $match = [regex]::Match($stripped, $pattern)
     if (-not $match.Success) {
         return @{ Bucket = 'Changed'; Bullet = "- $stripped ($($Sha.Substring(0, 7)))" }
@@ -101,11 +107,22 @@ function Convert-SubjectToEntry {
 }
 
 function Get-UnreleasedBody {
+    [CmdletBinding()]
+    [OutputType([string])]
     param([string] $Content)
     $pattern = '(?ms)^## Unreleased\s*(?<body>.*?)(?=^---|\z)'
     $match = [regex]::Match($Content, $pattern)
     if (-not $match.Success) { return '' }
     return $match.Groups['body'].Value.Trim()
+}
+
+if (-not $RepoRoot) {
+    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+}
+
+$ChangelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
+if (-not (Test-Path -LiteralPath $ChangelogPath)) {
+    throw "CHANGELOG.md not found at $ChangelogPath"
 }
 
 if ($Mode -eq 'Append') {
@@ -117,30 +134,31 @@ if ($Mode -eq 'Append') {
 
     $entriesByBucket = [ordered]@{
         Breaking = New-Object System.Collections.Generic.List[string]
-        Added = New-Object System.Collections.Generic.List[string]
-        Changed = New-Object System.Collections.Generic.List[string]
-        Fixed = New-Object System.Collections.Generic.List[string]
+        Added    = New-Object System.Collections.Generic.List[string]
+        Changed  = New-Object System.Collections.Generic.List[string]
+        Fixed    = New-Object System.Collections.Generic.List[string]
     }
 
     $lines = & git -C $RepoRoot log --no-merges --format='%H%x09%s' $Range
+    if ($LASTEXITCODE -ne 0) { throw "git log failed with exit code $LASTEXITCODE" }
     foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         $parts = $line -split "`t", 2
         if ($parts.Count -ne 2) { continue }
         $entry = Convert-SubjectToEntry -Sha $parts[0] -Subject $parts[1]
         if ($null -ne $entry) {
-            $entriesByBucket[$entry.Bucket].Add($entry.Bullet) | Out-Null
+            $null = $entriesByBucket[$entry.Bucket].Add($entry.Bullet)
         }
     }
 
     $newBodyLines = New-Object System.Collections.Generic.List[string]
     foreach ($bucket in $entriesByBucket.Keys) {
         if ($entriesByBucket[$bucket].Count -eq 0) { continue }
-        $newBodyLines.Add("### $bucket") | Out-Null
+        $null = $newBodyLines.Add("### $bucket")
         foreach ($bullet in $entriesByBucket[$bucket]) {
-            $newBodyLines.Add($bullet) | Out-Null
+            $null = $newBodyLines.Add($bullet)
         }
-        $newBodyLines.Add('') | Out-Null
+        $null = $newBodyLines.Add('')
     }
 
     if ($newBodyLines.Count -eq 0) {
@@ -181,3 +199,5 @@ if ($Mode -eq 'Notes') {
         Get-UnreleasedBody -Content $content
     }
 }
+
+exit 0

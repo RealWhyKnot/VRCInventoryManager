@@ -1,14 +1,13 @@
 using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
-using VRCInventoryManager.Core;
 using DrawingColor = System.Drawing.Color;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class ImagePayloadFactoryTests
+public sealed class ImagePayloadFactoryTests
 {
-    public static Task PreserveUploadReadyStaticPngAsync()
+    [Fact]
+    public async Task PreserveUploadReadyStaticPngAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -16,10 +15,10 @@ internal static class ImagePayloadFactoryTests
             string path = Path.Combine(root, "wide.png");
             TestFiles.WritePng(path, 120, 80, DrawingColor.FromArgb(255, 200, 20, 10));
 
-            byte[] expected = File.ReadAllBytes(path);
+            byte[] expected = await File.ReadAllBytesAsync(path);
             TestAssert.False(ImagePayloadFactory.NeedsStaticNormalization(path), "static PNG is upload ready");
             TestAssert.True(expected.SequenceEqual(ImagePayloadFactory.GetPngPayload(path)), "static PNG pass-through");
-            return Task.CompletedTask;
+            return;
         }
         finally
         {
@@ -27,7 +26,8 @@ internal static class ImagePayloadFactoryTests
         }
     }
 
-    public static Task ConvertJpegPayloadToPngWithoutSquarePaddingAsync()
+    [Fact]
+    public Task ConvertJpegPayloadToPngWithoutSquarePaddingAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -50,7 +50,8 @@ internal static class ImagePayloadFactoryTests
         }
     }
 
-    public static Task DownscaleOversizedStaticPayloadAsync()
+    [Fact]
+    public Task DownscaleOversizedStaticPayloadAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -70,7 +71,8 @@ internal static class ImagePayloadFactoryTests
         }
     }
 
-    public static Task PreserveSquareSpriteSheetPngAsync()
+    [Fact]
+    public async Task PreserveSquareSpriteSheetPngAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -78,9 +80,9 @@ internal static class ImagePayloadFactoryTests
             string path = Path.Combine(root, "sheet_stopanimationStyle_4frames_20fps.png");
             TestFiles.WritePng(path, 128, 128, DrawingColor.Purple);
 
-            byte[] expected = File.ReadAllBytes(path);
+            byte[] expected = await File.ReadAllBytesAsync(path);
             TestAssert.True(expected.SequenceEqual(ImagePayloadFactory.GetSpriteSheetPngPayload(path)), "sprite sheet PNG pass-through");
-            return Task.CompletedTask;
+            return;
         }
         finally
         {
@@ -88,7 +90,8 @@ internal static class ImagePayloadFactoryTests
         }
     }
 
-    public static async Task RejectNonSquareSpriteSheetPngAsync()
+    [Fact]
+    public async Task RejectNonSquareSpriteSheetPngAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -109,7 +112,7 @@ internal static class ImagePayloadFactoryTests
     private static Bitmap Decode(byte[] bytes)
     {
         using MemoryStream stream = new(bytes);
-        using Image image = Image.FromStream(stream);
+        using var image = Image.FromStream(stream);
         return new Bitmap(image);
     }
 }

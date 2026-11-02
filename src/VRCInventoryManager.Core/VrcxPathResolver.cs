@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace VRCInventoryManager.Core;
 
-public static class VrcxPathResolver
+internal static class VrcxPathResolver
 {
     private const string VrcxDataFolderName = "VRCX";
     private const string VrcxDatabaseFileName = "VRCX.sqlite3";
@@ -46,7 +46,7 @@ public static class VrcxPathResolver
             ["LocalAppData"] = localApplicationDataPath,
             ["UserProfile"] = userProfilePath,
             ["ProgramFiles"] = programFilesPath,
-            ["ProgramFiles(x86)"] = programFilesX86Path
+            ["ProgramFiles(x86)"] = programFilesX86Path,
         };
 
         string vrcxDataFolder = NormalizePath(Path.Combine(appDataPath, VrcxDataFolderName));
@@ -75,12 +75,9 @@ public static class VrcxPathResolver
         VrcxPathResolverOptions options)
     {
         string? configuredPath = ReadJsonString(vrchatConfigPath, VrchatPictureOutputFolderKey, options);
-        if (!string.IsNullOrWhiteSpace(configuredPath))
-        {
-            return NormalizeConfiguredPath(configuredPath, variables);
-        }
-
-        return NormalizePath(Path.Combine(myPicturesPath, VrchatFolderName));
+        return !string.IsNullOrWhiteSpace(configuredPath)
+            ? NormalizeConfiguredPath(configuredPath, variables)
+            : NormalizePath(Path.Combine(myPicturesPath, VrchatFolderName));
     }
 
     private static string ResolveDatabasePath(
@@ -105,12 +102,9 @@ public static class VrcxPathResolver
         }
 
         string nestedDatabasePath = NormalizePath(Path.Combine(normalizedLocation, VrcxDatabaseFileName));
-        if (directoryExists(normalizedLocation) || !Path.HasExtension(normalizedLocation) || fileExists(nestedDatabasePath))
-        {
-            return nestedDatabasePath;
-        }
-
-        return normalizedLocation;
+        return directoryExists(normalizedLocation) || !Path.HasExtension(normalizedLocation) || fileExists(nestedDatabasePath)
+            ? nestedDatabasePath
+            : normalizedLocation;
     }
 
     private static string ResolveVersionPath(
@@ -123,7 +117,7 @@ public static class VrcxPathResolver
         [
             NormalizePath(Path.Combine(programFilesPath, VrcxDataFolderName, "Version")),
             NormalizePath(Path.Combine(programFilesX86Path, VrcxDataFolderName, "Version")),
-            NormalizePath(Path.Combine(localApplicationDataPath, "Programs", VrcxDataFolderName, "Version"))
+            NormalizePath(Path.Combine(localApplicationDataPath, "Programs", VrcxDataFolderName, "Version")),
         ];
 
         Func<string, bool> fileExists = options.FileExists ?? File.Exists;
@@ -149,7 +143,7 @@ public static class VrcxPathResolver
 
         try
         {
-            using JsonDocument document = JsonDocument.Parse(readAllText(path));
+            using var document = JsonDocument.Parse(readAllText(path));
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
                 return null;
@@ -166,12 +160,15 @@ public static class VrcxPathResolver
         }
         catch (JsonException)
         {
+            return null;
         }
         catch (IOException)
         {
+            return null;
         }
         catch (UnauthorizedAccessException)
         {
+            return null;
         }
 
         return null;
@@ -197,12 +194,9 @@ public static class VrcxPathResolver
         }
 
         string? environmentPath = Environment.GetEnvironmentVariable("USERPROFILE");
-        if (!string.IsNullOrWhiteSpace(environmentPath))
-        {
-            return NormalizePath(environmentPath);
-        }
-
-        return NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.Personal));
+        return !string.IsNullOrWhiteSpace(environmentPath)
+            ? NormalizePath(environmentPath)
+            : NormalizePath(Environment.GetFolderPath(Environment.SpecialFolder.Personal));
     }
 
     private static string GetPath(string? overridePath, Environment.SpecialFolder specialFolder, string fallbackPath)
@@ -213,12 +207,7 @@ public static class VrcxPathResolver
         }
 
         string folderPath = Environment.GetFolderPath(specialFolder);
-        if (!string.IsNullOrWhiteSpace(folderPath))
-        {
-            return NormalizePath(folderPath);
-        }
-
-        return NormalizePath(fallbackPath);
+        return !string.IsNullOrWhiteSpace(folderPath) ? NormalizePath(folderPath) : NormalizePath(fallbackPath);
     }
 
     private static string NormalizeConfiguredPath(string path, IReadOnlyDictionary<string, string> variables) =>

@@ -5,111 +5,116 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager;
 
-internal sealed class ImageThumbnailLoader : IDisposable
+internal sealed partial class ImageThumbnailLoader : IDisposable
 {
     private const int ThumbnailWidth = 120;
     private const int MaxLocalCacheEntries = 512;
     private const int MaxRemoteCacheEntries = 128;
-    private readonly Dictionary<string, ThumbnailCacheEntry<BitmapSource?>> localCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, ThumbnailCacheEntry<AnimatedImageFrames?>> localAnimationCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, ThumbnailCacheEntry<BitmapSource?>> remoteCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, ThumbnailCacheEntry<AnimatedImageFrames?>> remoteAnimationCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object localCacheGate = new();
-    private readonly object remoteCacheGate = new();
-    private readonly SemaphoreSlim localGate = new(2);
-    private readonly SemaphoreSlim remoteGate = new(4);
-    private readonly HttpClient httpClient = new();
-    private readonly object authGate = new();
-    private VrcxAuthCookies? remoteCookies;
-    private string remoteUserAgent = "VRCInventoryManager";
-    private long cacheStamp;
+    private readonly Dictionary<string, ThumbnailCacheEntry<BitmapSource?>> _localCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<AnimatedImageFrames?>> _localAnimationCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<BitmapSource?>> _remoteCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ThumbnailCacheEntry<AnimatedImageFrames?>> _remoteAnimationCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _localCacheGate = new();
+    private readonly object _remoteCacheGate = new();
+    private readonly SemaphoreSlim _localGate = new(2);
+    private readonly SemaphoreSlim _remoteGate = new(4);
+    private readonly HttpClient _httpClient;
+    private readonly Lock _operationGate = new();
+    private int _activeOperations;
+    private bool _isDisposed;
+    private readonly Lock _authGate = new();
+    private VrcxAuthCookies? _remoteCookies;
+    private string _remoteUserAgent = "VRCInventoryManager";
+    private long _cacheStamp;
 
-    public Task<BitmapSource?> LoadLocalAsync(LocalAsset asset) =>
-        GetOrAddCache(localCache, localCacheGate, asset.Path, () => LoadLocalCoreAsync(asset), MaxLocalCacheEntries);
-
-    public Task<AnimatedImageFrames?> LoadLocalAnimationAsync(LocalAsset asset) =>
-        GetOrAddCache(localAnimationCache, localCacheGate, asset.Path, () => LoadLocalAnimationCoreAsync(asset), MaxLocalCacheEntries);
-
-    public Task<BitmapSource?> LoadRemoteAsync(string url) =>
-        GetOrAddCache(remoteCache, remoteCacheGate, url, () => LoadRemoteCoreAsync(url), MaxRemoteCacheEntries);
-
-    public Task<AnimatedImageFrames?> LoadRemoteAnimationAsync(RemoteInventoryItem item) =>
-        GetOrAddCache(
-            remoteAnimationCache,
-            remoteCacheGate,
-            $"{item.PreviewUrl}|{item.Frames}|{item.FramesOverTime}",
-            () => LoadRemoteAnimationCoreAsync(item),
-            MaxRemoteCacheEntries);
-
-    public async Task<byte[]> DownloadRemoteBytesAsync(string url, CancellationToken cancellationToken)
+    public ImageThumbnailLoader(HttpMessageHandler? handler = null)
     {
-        await remoteGate.WaitAsync(cancellationToken);
+        _httpClient = handler is null ? new HttpClient() : new HttpClient(handler);
+    }
+
+    public Task<BitmapSource?> LoadLocalAsync(LocalAsset asset, CancellationToken cancellationToken = default) =>
+        GetOrAddCacheAsync(_localCache, _localCacheGate, asset.Path, () => RunOperationAsync(() => LoadLocalCoreAsync(asset, CancellationToken.None), CancellationToken.None), MaxLocalCacheEntries, cancellationToken);
+
+    public Task<AnimatedImageFrames?> LoadLocalAnimationAsync(LocalAsset asset, CancellationToken cancellationToken = default) =>
+        GetOrAddCacheAsync(_localAnimationCache, _localCacheGate, asset.Path, () => RunOperationAsync(() => LoadLocalAnimationCoreAsync(asset, CancellationToken.None), CancellationToken.None), MaxLocalCacheEntries, cancellationToken);
+
+    public Task<BitmapSource?> LoadRemoteAsync(string url, CancellationToken cancellationToken = default) =>
+        GetOrAddCacheAsync(_remoteCache, _remoteCacheGate, url, () => RunOperationAsync(() => LoadRemoteCoreAsync(url, CancellationToken.None), CancellationToken.None), MaxRemoteCacheEntries, cancellationToken);
+
+    public Task<AnimatedImageFrames?> LoadRemoteAnimationAsync(RemoteInventoryItem item, CancellationToken cancellationToken = default) =>
+        GetOrAddCacheAsync(
+            _remoteAnimationCache,
+            _remoteCacheGate,
+            $"{item.PreviewUrl}|{item.Frames}|{item.FramesOverTime}",
+            () => RunOperationAsync(() => LoadRemoteAnimationCoreAsync(item, CancellationToken.None), CancellationToken.None),
+            MaxRemoteCacheEntries, cancellationToken);
+
+    public Task<byte[]> DownloadRemoteBytesAsync(string url, CancellationToken cancellationToken) =>
+        RunOperationAsync(() => DownloadRemoteBytesWithGateAsync(url, cancellationToken), cancellationToken);
+
+    private async Task<byte[]> DownloadRemoteBytesWithGateAsync(string url, CancellationToken cancellationToken)
+    {
+        await _remoteGate.WaitAsync(cancellationToken);
         try
         {
             return await DownloadRemoteBytesCoreAsync(url, cancellationToken);
         }
         finally
         {
-            remoteGate.Release();
+            _remoteGate.Release();
         }
     }
 
     public void ClearLocal()
     {
-        ClearCache(localCache, localCacheGate);
-        ClearCache(localAnimationCache, localCacheGate);
+        ClearCache(_localCache, _localCacheGate);
+        ClearCache(_localAnimationCache, _localCacheGate);
     }
 
     public void ConfigureRemoteAuth(VrcxAuthCookies cookies, string userAgent)
     {
-        lock (authGate)
+        lock (_authGate)
         {
-            remoteCookies = cookies;
-            remoteUserAgent = string.IsNullOrWhiteSpace(userAgent) ? "VRCInventoryManager" : userAgent;
+            _remoteCookies = cookies;
+            _remoteUserAgent = string.IsNullOrWhiteSpace(userAgent) ? "VRCInventoryManager" : userAgent;
         }
 
-        ClearCache(remoteCache, remoteCacheGate);
-        ClearCache(remoteAnimationCache, remoteCacheGate);
+        ClearCache(_remoteCache, _remoteCacheGate);
+        ClearCache(_remoteAnimationCache, _remoteCacheGate);
     }
 
     public void ClearRemoteAuth()
     {
-        lock (authGate)
+        lock (_authGate)
         {
-            remoteCookies = null;
+            _remoteCookies = null;
         }
 
-        ClearCache(remoteCache, remoteCacheGate);
-        ClearCache(remoteAnimationCache, remoteCacheGate);
+        ClearCache(_remoteCache, _remoteCacheGate);
+        ClearCache(_remoteAnimationCache, _remoteCacheGate);
     }
 
-    public void Dispose()
-    {
-        localGate.Dispose();
-        remoteGate.Dispose();
-        httpClient.Dispose();
-    }
-
-    private Task<T> GetOrAddCache<T>(
+    private Task<T> GetOrAddCacheAsync<T>(
         Dictionary<string, ThumbnailCacheEntry<T>> cache,
         object gate,
         string key,
         Func<Task<T>> factory,
-        int maxEntries)
+        int maxEntries, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         lock (gate)
         {
-            long stamp = Interlocked.Increment(ref cacheStamp);
+            long stamp = Interlocked.Increment(ref _cacheStamp);
             if (cache.TryGetValue(key, out ThumbnailCacheEntry<T>? existing))
             {
                 existing.LastAccess = stamp;
-                return existing.Task;
+                return existing.Task.WaitAsync(cancellationToken);
             }
 
             Task<T> task = factory();
             cache[key] = new ThumbnailCacheEntry<T>(task, stamp);
             TrimCache(cache, maxEntries);
-            return task;
+            return task.WaitAsync(cancellationToken);
         }
     }
 
@@ -129,82 +134,186 @@ internal sealed class ImageThumbnailLoader : IDisposable
             return;
         }
 
-        string[] keysToRemove = cache
+        string[] keysToRemove = [.. cache
             .OrderBy(entry => entry.Value.LastAccess)
             .Take(removeCount)
-            .Select(entry => entry.Key)
-            .ToArray();
+            .Select(entry => entry.Key)];
         foreach (string key in keysToRemove)
         {
             cache.Remove(key);
         }
     }
 
-    private async Task<BitmapSource?> LoadLocalCoreAsync(LocalAsset asset)
+    private async Task<BitmapSource?> LoadLocalCoreAsync(LocalAsset asset, CancellationToken cancellationToken = default)
     {
-        await localGate.WaitAsync();
+        await _localGate.WaitAsync(cancellationToken);
         try
         {
             return await Task.Run(() => asset.IsGif
                 ? LoadGifFrame(asset.Path, ThumbnailWidth)
-                : LoadBitmap(asset.Path, ThumbnailWidth));
+                : LoadBitmap(asset.Path, ThumbnailWidth), cancellationToken);
         }
-        catch (Exception ex)
+        catch (IOException exception)
         {
-            App.Log.Warning($"Local thumbnail failed for '{asset.Path}': {ex.Message}");
-            return null;
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (ArgumentException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (System.Runtime.InteropServices.ExternalException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (OutOfMemoryException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleLoadLocalCoreFailure(exception, asset); return null;
         }
         finally
         {
-            localGate.Release();
+            _localGate.Release();
         }
     }
 
-    private async Task<AnimatedImageFrames?> LoadLocalAnimationCoreAsync(LocalAsset asset)
+    private async Task<AnimatedImageFrames?> LoadLocalAnimationCoreAsync(LocalAsset asset, CancellationToken cancellationToken = default)
     {
         if (!asset.IsGif && !asset.HasSpriteSheetAnimation)
         {
             return null;
         }
 
-        await localGate.WaitAsync();
+        await _localGate.WaitAsync(cancellationToken);
         try
         {
             return await Task.Run(() => asset.IsGif
                 ? LoadGifAnimation(asset.Path, ThumbnailWidth)
-                : LoadSpriteSheetAnimation(asset.Path, asset.Frames!.Value, asset.FramesOverTime!.Value, ThumbnailWidth));
+                : LoadSpriteSheetAnimation(asset.Path, asset.Frames!.Value, asset.FramesOverTime!.Value, ThumbnailWidth), cancellationToken);
         }
-        catch (Exception ex)
+        catch (IOException exception)
         {
-            App.Log.Warning($"Local animated thumbnail failed for '{asset.Path}': {ex.Message}");
-            return null;
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (ArgumentException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (System.Runtime.InteropServices.ExternalException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (OutOfMemoryException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleLoadLocalAnimationCoreFailure(exception, asset); return null;
         }
         finally
         {
-            localGate.Release();
+            _localGate.Release();
         }
     }
 
-    private async Task<BitmapSource?> LoadRemoteCoreAsync(string url)
+    private async Task<BitmapSource?> LoadRemoteCoreAsync(string url, CancellationToken cancellationToken = default)
     {
-        await remoteGate.WaitAsync();
+        await _remoteGate.WaitAsync(cancellationToken);
         try
         {
-            byte[] bytes = await DownloadRemoteBytesCoreAsync(url, CancellationToken.None);
-            return await Task.Run(() => LoadBitmap(bytes, ThumbnailWidth));
+            byte[] bytes = await DownloadRemoteBytesCoreAsync(url, cancellationToken);
+            return await Task.Run(() => LoadBitmap(bytes, ThumbnailWidth), cancellationToken);
         }
-        catch (Exception ex)
+        catch (IOException exception)
         {
-            App.Log.Warning($"Remote thumbnail failed for '{url}': {ex.Message}");
-            return null;
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (ArgumentException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (System.Runtime.InteropServices.ExternalException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (OutOfMemoryException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleLoadRemoteCoreFailure(exception, url); return null;
         }
         finally
         {
-            remoteGate.Release();
+            _remoteGate.Release();
         }
     }
 
-    private async Task<AnimatedImageFrames?> LoadRemoteAnimationCoreAsync(RemoteInventoryItem item)
+    private async Task<AnimatedImageFrames?> LoadRemoteAnimationCoreAsync(RemoteInventoryItem item, CancellationToken cancellationToken = default)
     {
         if (!SpriteSheetFrameExtractor.CanAnimate(item.Frames, item.FramesOverTime) ||
             string.IsNullOrWhiteSpace(item.PreviewUrl))
@@ -212,35 +321,70 @@ internal sealed class ImageThumbnailLoader : IDisposable
             return null;
         }
 
-        await remoteGate.WaitAsync();
+        await _remoteGate.WaitAsync(cancellationToken);
         try
         {
-            byte[] bytes = await DownloadRemoteBytesCoreAsync(item.PreviewUrl, CancellationToken.None);
+            byte[] bytes = await DownloadRemoteBytesCoreAsync(item.PreviewUrl, cancellationToken);
             int frames = item.Frames!.Value;
             int framesOverTime = item.FramesOverTime!.Value;
-            return await Task.Run(() => LoadSpriteSheetAnimation(bytes, frames, framesOverTime, ThumbnailWidth));
+            return await Task.Run(() => LoadSpriteSheetAnimation(bytes, frames, framesOverTime, ThumbnailWidth), cancellationToken);
         }
-        catch (Exception ex)
+        catch (IOException exception)
         {
-            App.Log.Warning($"Remote animated thumbnail failed for '{item.Id}': {ex.Message}");
-            return null;
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (ArgumentException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (System.Runtime.InteropServices.ExternalException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (OutOfMemoryException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleLoadRemoteAnimationCoreFailure(exception, item); return null;
         }
         finally
         {
-            remoteGate.Release();
+            _remoteGate.Release();
         }
     }
 
     private async Task<byte[]> DownloadRemoteBytesCoreAsync(string url, CancellationToken cancellationToken)
     {
         using HttpRequestMessage request = new(HttpMethod.Get, url);
-        request.Headers.TryAddWithoutValidation("User-Agent", remoteUserAgent);
+        request.Headers.TryAddWithoutValidation("User-Agent", _remoteUserAgent);
         if (ShouldSendVrchatCookies(url))
         {
             VrcxAuthCookies? cookies;
-            lock (authGate)
+            lock (_authGate)
             {
-                cookies = remoteCookies;
+                cookies = _remoteCookies;
             }
 
             if (cookies is not null)
@@ -249,7 +393,7 @@ internal sealed class ImageThumbnailLoader : IDisposable
             }
         }
 
-        using HttpResponseMessage response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
@@ -261,12 +405,9 @@ internal sealed class ImageThumbnailLoader : IDisposable
             BitmapCreateOptions.PreservePixelFormat,
             BitmapCacheOption.OnLoad);
 
-        if (decoder.Frames.Count == 0)
-        {
-            throw new InvalidOperationException("GIF did not contain frames.");
-        }
-
-        return ResizeFrame(decoder.Frames[0], decodeWidth);
+        return decoder.Frames.Count == 0
+            ? throw new InvalidOperationException("GIF did not contain frames.")
+            : ResizeFrame(decoder.Frames[0], decodeWidth);
     }
 
     private static AnimatedImageFrames LoadGifAnimation(string path, int decodeWidth)
@@ -358,7 +499,7 @@ internal sealed class ImageThumbnailLoader : IDisposable
     {
         if (sourceFrameCount == outputFrameCount)
         {
-            return Enumerable.Range(0, sourceFrameCount).ToArray();
+            return [.. Enumerable.Range(0, sourceFrameCount)];
         }
 
         int[] indexes = new int[outputFrameCount];
@@ -372,12 +513,12 @@ internal sealed class ImageThumbnailLoader : IDisposable
 
     private static TimeSpan GetGifFrameDelay(BitmapFrame frame)
     {
-        const string delayQuery = "/grctlext/Delay";
+        const string DelayQuery = "/grctlext/Delay";
         try
         {
-            if (frame.Metadata is BitmapMetadata metadata && metadata.ContainsQuery(delayQuery))
+            if (frame.Metadata is BitmapMetadata metadata && metadata.ContainsQuery(DelayQuery))
             {
-                int hundredths = Convert.ToInt32(metadata.GetQuery(delayQuery));
+                int hundredths = Convert.ToInt32(metadata.GetQuery(DelayQuery), System.Globalization.CultureInfo.InvariantCulture);
                 if (hundredths > 1)
                 {
                     return TimeSpan.FromMilliseconds(hundredths * 10);
@@ -386,9 +527,11 @@ internal sealed class ImageThumbnailLoader : IDisposable
         }
         catch (InvalidOperationException)
         {
+            return TimeSpan.FromMilliseconds(100);
         }
         catch (NotSupportedException)
         {
+            return TimeSpan.FromMilliseconds(100);
         }
 
         return TimeSpan.FromMilliseconds(100);
@@ -398,10 +541,16 @@ internal sealed class ImageThumbnailLoader : IDisposable
         Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) &&
         uri.Host.EndsWith("vrchat.cloud", StringComparison.OrdinalIgnoreCase);
 
-    private sealed class ThumbnailCacheEntry<T>(Task<T> task, long lastAccess)
+    private sealed class ThumbnailCacheEntry<T>
     {
-        public Task<T> Task { get; } = task;
+        public ThumbnailCacheEntry(Task<T> task, long lastAccess)
+        {
+            Task = task;
+            LastAccess = lastAccess;
+        }
 
-        public long LastAccess { get; set; } = lastAccess;
+        public Task<T> Task { get; }
+
+        public long LastAccess { get; set; }
     }
 }

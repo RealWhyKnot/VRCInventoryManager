@@ -1,10 +1,12 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.IO;
+using VRCInventoryManager.Core;
 
-namespace VRCInventoryManager.Core;
+namespace VRCInventoryManager;
 
-public sealed class GifSpriteSheetConverter
+internal static class GifSpriteSheetConverter
 {
     public const int DefaultCanvasSize = 1024;
     public const int MaxFrames = 64;
@@ -12,9 +14,9 @@ public sealed class GifSpriteSheetConverter
     private const int PropertyTagFrameDelay = 0x5100;
     private const int DefaultFrameDelayHundredths = 10;
 
-    public SpriteSheetResult Convert(string gifPath, int canvasSize = DefaultCanvasSize)
+    public static SpriteSheetResult Convert(string gifPath, int canvasSize = DefaultCanvasSize)
     {
-        using Image gif = Image.FromFile(gifPath);
+        using var gif = Image.FromFile(gifPath);
         if (gif.FrameDimensionsList.Length == 0)
         {
             throw new InvalidOperationException("GIF did not contain frame dimensions.");
@@ -35,7 +37,7 @@ public sealed class GifSpriteSheetConverter
         int cellSize = canvasSize / grid;
 
         using Bitmap sheet = new(canvasSize, canvasSize, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(sheet))
+        using (var graphics = Graphics.FromImage(sheet))
         {
             ConfigureGraphics(graphics);
             graphics.Clear(Color.Transparent);
@@ -57,7 +59,7 @@ public sealed class GifSpriteSheetConverter
     {
         if (sourceFrameCount == outputFrameCount)
         {
-            return Enumerable.Range(0, sourceFrameCount).ToArray();
+            return [.. Enumerable.Range(0, sourceFrameCount)];
         }
 
         int[] indexes = new int[outputFrameCount];
@@ -76,23 +78,22 @@ public sealed class GifSpriteSheetConverter
         double scale = Math.Min(cellSize / (double)Math.Max(1, width), cellSize / (double)Math.Max(1, height));
         double scaledWidth = Math.Max(1, Math.Round(width * scale));
         double scaledHeight = Math.Max(1, Math.Round(height * scale));
-        double x = column * cellSize + (cellSize - scaledWidth) / 2;
-        double y = row * cellSize + (cellSize - scaledHeight) / 2;
+        double x = (column * cellSize) + ((cellSize - scaledWidth) / 2);
+        double y = (row * cellSize) + ((cellSize - scaledHeight) / 2);
         return new RectangleF((float)x, (float)y, (float)scaledWidth, (float)scaledHeight);
     }
 
     private static int EstimateFramesPerSecond(IReadOnlyList<int> frameDelays, int outputFrameCount)
     {
         double durationSeconds = frameDelays
-            .Select(delay => delay > 0 ? delay : DefaultFrameDelayHundredths)
-            .Sum() / 100.0;
+            .Sum(delay => delay > 0 ? delay : DefaultFrameDelayHundredths) / 100.0;
         int fps = (int)Math.Round(outputFrameCount / Math.Max(durationSeconds, 0.01));
         return Math.Clamp(fps, 1, MaxFramesPerSecond);
     }
 
     private static int[] ReadFrameDelays(Image image, int frameCount)
     {
-        int[] delays = Enumerable.Repeat(DefaultFrameDelayHundredths, frameCount).ToArray();
+        int[] delays = [.. Enumerable.Repeat(DefaultFrameDelayHundredths, frameCount)];
         try
         {
             PropertyItem? item = image.GetPropertyItem(PropertyTagFrameDelay);
@@ -102,7 +103,7 @@ public sealed class GifSpriteSheetConverter
                 return delays;
             }
 
-            for (int i = 0; i < frameCount && i * 4 + 3 < values.Length; i++)
+            for (int i = 0; i < frameCount && (i * 4) + 3 < values.Length; i++)
             {
                 int delay = BitConverter.ToInt32(values, i * 4);
                 if (delay > 0)
@@ -113,6 +114,7 @@ public sealed class GifSpriteSheetConverter
         }
         catch (ArgumentException)
         {
+            return delays;
         }
 
         return delays;
@@ -121,7 +123,7 @@ public sealed class GifSpriteSheetConverter
     private static Bitmap CopySelectedFrame(Image gif)
     {
         Bitmap frame = new(gif.Width, gif.Height, PixelFormat.Format32bppArgb);
-        using Graphics graphics = Graphics.FromImage(frame);
+        using var graphics = Graphics.FromImage(frame);
         ConfigureGraphics(graphics);
         graphics.Clear(Color.Transparent);
         graphics.DrawImage(gif, 0, 0, gif.Width, gif.Height);

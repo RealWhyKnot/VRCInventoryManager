@@ -6,24 +6,25 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class VrcxCookieTests
+public sealed class VrcxCookieTests
 {
-    public static Task BundledSqliteHasTheAggregateFixAsync()
+    [Fact]
+    public async Task BundledSqliteHasTheAggregateFixAsync()
     {
         using SqliteConnection connection = new("Data Source=:memory:");
-        connection.Open();
+        await connection.OpenAsync();
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "select sqlite_version()";
-        string version = (string)command.ExecuteScalar()!;
+        string version = (string)(await command.ExecuteScalarAsync())!;
         TestAssert.True(Version.Parse(version) >= new Version(3, 50, 2), $"bundled SQLite {version} predates 3.50.2 (CVE-2025-6965)");
-        return Task.CompletedTask;
     }
 
-    public static Task ParseCookiePayloadAsync()
+    [Fact]
+    public Task ParseCookiePayloadAsync()
     {
         string encoded = EncodeCookieJson([
             new CookieShape("auth", "auth_cookie"),
-            new CookieShape("twoFactorAuth", "two_factor_cookie")
+            new CookieShape("twoFactorAuth", "two_factor_cookie"),
         ]);
 
         VrcxAuthCookies cookies = VrcxCookieProvider.ParseCookies(encoded);
@@ -36,20 +37,14 @@ internal static class VrcxCookieTests
         TestAssert.Equal("api_two_factor_cookie", electronCookies.TwoFactorAuth, "lower-case two factor cookie");
 
         string missing = EncodeCookieJson([new CookieShape("auth", "do_not_leak")]);
-        try
-        {
-            _ = VrcxCookieProvider.ParseCookies(missing);
-            throw new InvalidOperationException("Expected missing twoFactorAuth to fail.");
-        }
-        catch (InvalidOperationException ex)
-        {
-            TestAssert.False(ex.Message.Contains("do_not_leak", StringComparison.Ordinal), "secret not in exception");
-        }
+        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => VrcxCookieProvider.ParseCookies(missing));
+        Assert.DoesNotContain("do_not_leak", exception.Message, StringComparison.Ordinal);
 
         return Task.CompletedTask;
     }
 
-    public static Task LoadCookiesFromSqliteAsync()
+    [Fact]
+    public async Task LoadCookiesFromSqliteAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         string databasePath = Path.Combine(root, "VRCX.sqlite3");
@@ -58,54 +53,54 @@ internal static class VrcxCookieTests
         {
             string encoded = EncodeCookieJson([
                 new CookieShape("auth", "auth_from_db"),
-                new CookieShape("twoFactorAuth", "two_factor_from_db")
+                new CookieShape("twoFactorAuth", "two_factor_from_db"),
             ]);
 
-            using (SqliteConnection connection = new($"Data Source={databasePath}"))
+            using (SqliteConnection connection = new($"Data Source={databasePath};Pooling=False"))
             {
-                connection.Open();
+                await connection.OpenAsync();
                 using SqliteCommand create = connection.CreateCommand();
                 create.CommandText = "create table cookies(key text primary key, value text);";
-                create.ExecuteNonQuery();
+                await create.ExecuteNonQueryAsync();
 
                 using SqliteCommand insert = connection.CreateCommand();
                 insert.CommandText = "insert into cookies(key, value) values ($key, $value);";
                 insert.Parameters.AddWithValue("$key", "default");
                 insert.Parameters.AddWithValue("$value", encoded);
-                insert.ExecuteNonQuery();
+                await insert.ExecuteNonQueryAsync();
             }
 
-            File.WriteAllText(versionPath, "TestVRCX/1");
-            SqliteConnection.ClearAllPools();
+            await File.WriteAllTextAsync(versionPath, "TestVRCX/1");
             VrcxCookieProvider provider = new(databasePath, versionPath);
             VrcxAuthSession session = provider.LoadDefaultSession();
             TestAssert.Equal("auth_from_db", session.Cookies.Auth, "db auth cookie");
             TestAssert.Equal("two_factor_from_db", session.Cookies.TwoFactorAuth, "db two factor cookie");
             TestAssert.Equal("TestVRCX/1", session.UserAgent, "user agent");
-            return Task.CompletedTask;
+            return;
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
             Directory.Delete(root, recursive: true);
         }
     }
 
-    public static Task ReadWalCookiesWhileVrcxHasDatabaseOpenAsync()
+    [Fact]
+    public Task ReadWalCookiesWhileVrcxHasDatabaseOpenAsync()
     {
         return WithVrcxDatabaseAsync((databasePath, tempDirectory) =>
         {
             using SqliteConnection vrcx = OpenVrcxConnection(databasePath);
-            Execute(vrcx, "pragma journal_mode=wal; pragma wal_autocheckpoint=0;");
+            Execute(vrcx, DatabaseOperation.Wal);
             WriteCookieRow(vrcx, "auth_in_wal");
 
-            VrcxAuthSession session = new VrcxCookieProvider(databasePath, Path.Combine(tempDirectory, "Version")).LoadDefaultSession();
+            VrcxAuthSession session = new VrcxCookieProvider(databasePath, Path.Combine(tempDirectory, "Version"), tempDirectory).LoadDefaultSession();
             TestAssert.Equal("auth_in_wal", session.Cookies.Auth, "cookie committed to the WAL");
             TestAssert.Equal(0, Directory.GetFileSystemEntries(tempDirectory).Length, "temp entries after read");
         });
     }
 
-    public static Task ReadCommittedCookiesDuringVrcxWriteAsync()
+    [Fact]
+    public Task ReadCommittedCookiesDuringVrcxWriteAsync()
     {
         return WithVrcxDatabaseAsync((databasePath, tempDirectory) =>
         {
@@ -116,22 +111,23 @@ internal static class VrcxCookieTests
             update.CommandText = "update cookies set value = 'not committed' where key = 'default';";
             update.ExecuteNonQuery();
 
-            VrcxAuthSession session = new VrcxCookieProvider(databasePath, Path.Combine(tempDirectory, "Version")).LoadDefaultSession();
+            VrcxAuthSession session = new VrcxCookieProvider(databasePath, Path.Combine(tempDirectory, "Version"), tempDirectory).LoadDefaultSession();
             TestAssert.Equal("auth_committed", session.Cookies.Auth, "committed cookie during a write");
             TestAssert.Equal(0, Directory.GetFileSystemEntries(tempDirectory).Length, "temp entries after read");
             pending.Rollback();
         });
     }
 
-    public static Task FallBackToTemporaryCopyWhenDatabaseIsLockedAsync()
+    [Fact]
+    public Task FallBackToTemporaryCopyWhenDatabaseIsLockedAsync()
     {
         return WithVrcxDatabaseAsync((databasePath, tempDirectory) =>
         {
             using SqliteConnection vrcx = OpenVrcxConnection(databasePath);
             WriteCookieRow(vrcx, "auth_from_copy");
-            Execute(vrcx, "pragma locking_mode=exclusive; create table hold(id integer);");
+            Execute(vrcx, DatabaseOperation.Exclusive);
 
-            VrcxAuthSession session = new VrcxCookieProvider(databasePath, Path.Combine(tempDirectory, "Version")).LoadDefaultSession();
+            VrcxAuthSession session = new VrcxCookieProvider(databasePath, Path.Combine(tempDirectory, "Version"), tempDirectory).LoadDefaultSession();
             TestAssert.Equal("auth_from_copy", session.Cookies.Auth, "cookie from the fallback copy");
             TestAssert.Equal(0, Directory.GetFileSystemEntries(tempDirectory).Length, "temp entries after fallback");
         });
@@ -143,17 +139,13 @@ internal static class VrcxCookieTests
         string databasePath = Path.Combine(root, "VRCX.sqlite3");
         string tempDirectory = Path.Combine(root, "temp");
         Directory.CreateDirectory(tempDirectory);
-        string? previousTmp = Environment.GetEnvironmentVariable("TMP");
         try
         {
-            Environment.SetEnvironmentVariable("TMP", tempDirectory);
             test(databasePath, tempDirectory);
             return Task.CompletedTask;
         }
         finally
         {
-            Environment.SetEnvironmentVariable("TMP", previousTmp);
-            SqliteConnection.ClearAllPools();
             Directory.Delete(root, recursive: true);
         }
     }
@@ -167,37 +159,51 @@ internal static class VrcxCookieTests
 
     private static void WriteCookieRow(SqliteConnection connection, string auth)
     {
-        Execute(connection, "create table cookies(key text primary key, value text);");
+        Execute(connection, DatabaseOperation.Cookies);
         using SqliteCommand insert = connection.CreateCommand();
         insert.CommandText = "insert into cookies(key, value) values ($key, $value);";
         insert.Parameters.AddWithValue("$key", "default");
         insert.Parameters.AddWithValue("$value", EncodeCookieJson([
             new CookieShape("auth", auth),
-            new CookieShape("twoFactorAuth", "two_factor")
+            new CookieShape("twoFactorAuth", "two_factor"),
         ]));
         insert.ExecuteNonQuery();
     }
 
-    private static void Execute(SqliteConnection connection, string sql)
+    private static void Execute(SqliteConnection connection, DatabaseOperation operation)
     {
         using SqliteCommand command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
+        switch (operation)
+        {
+            case DatabaseOperation.Wal:
+                command.CommandText = "pragma journal_mode=wal; pragma wal_autocheckpoint=0;";
+                command.ExecuteNonQuery();
+                return;
+            case DatabaseOperation.Exclusive:
+                command.CommandText = "pragma locking_mode=exclusive; create table hold(id integer);";
+                command.ExecuteNonQuery();
+                return;
+            case DatabaseOperation.Cookies:
+                command.CommandText = "create table cookies(key text primary key, value text);";
+                command.ExecuteNonQuery();
+                return;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(operation));
+        }
     }
 
     private static string EncodeCookieJson(IEnumerable<CookieShape> cookies)
     {
-        object[] shaped = cookies
+        object[] shaped = [.. cookies
             .Select(cookie => new
             {
-                Name = cookie.Name,
-                Value = cookie.Value,
+                cookie.Name,
+                cookie.Value,
                 Domain = "api.vrchat.cloud",
                 Path = "/",
                 HttpOnly = true,
-                Secure = true
-            })
-            .ToArray();
+                Secure = true,
+            })];
         string json = JsonSerializer.Serialize(shaped);
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
     }
@@ -210,24 +216,31 @@ internal static class VrcxCookieTests
             {
                 name = "auth",
                 value = "wrong_auth_cookie",
-                domain = "example.com"
+                domain = "example.com",
             },
             new
             {
                 name = "auth",
                 value = "api_auth_cookie",
-                domain = "api.vrchat.cloud"
+                domain = "api.vrchat.cloud",
             },
             new
             {
                 name = "twoFactorAuth",
                 value = "api_two_factor_cookie",
-                domain = ".vrchat.cloud"
-            }
+                domain = ".vrchat.cloud",
+            },
         ];
         string json = JsonSerializer.Serialize(shaped);
         return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
     }
 
     private sealed record CookieShape(string Name, string Value);
+
+    private enum DatabaseOperation
+    {
+        Wal,
+        Exclusive,
+        Cookies,
+    }
 }

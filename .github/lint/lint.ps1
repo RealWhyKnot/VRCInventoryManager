@@ -1,85 +1,35 @@
 #!/usr/bin/env pwsh
+#Requires -Version 7.4
 [CmdletBinding()]
-param(
-    [switch] $Check,
-    [switch] $ChangedOnly,
-    [string] $ChangedBase = "origin/main",
-    [switch] $NoRestore
-)
+param()
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Set-Location (Join-Path $PSScriptRoot "../..")
 
-function Invoke-Step {
-    param(
-        [Parameter(Mandatory=$true)][string] $Name,
-        [Parameter(Mandatory=$true)][scriptblock] $Command
-    )
-
-    Write-Host "lint: $Name"
-    & $Command
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Name failed with exit code $LASTEXITCODE"
+Set-Location -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '../..')
+dotnet restore VRCInventoryManager.slnx --locked-mode
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+dotnet format VRCInventoryManager.slnx --verify-no-changes --no-restore
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+dotnet build VRCInventoryManager.slnx -c Release --no-restore
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+dotnet test VRCInventoryManager.slnx -c Release --no-build
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+dotnet run .github/lint/CSharpStyle.cs -- .
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+python -B .github/lint/style_check.py
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-PSLint.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$testNames = @('Test-UpdateChangelog.ps1', 'Test-GenerateReleaseNotes.ps1', 'Test-NightlyBetaPlan.ps1')
+foreach ($testName in $testNames) {
+    $testPath = Join-Path -Path $PSScriptRoot -ChildPath "../scripts/$testName"
+    pwsh -NoProfile -File $testPath
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($env:OS -eq 'Windows_NT') {
+        powershell -NoProfile -File $testPath
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 }
-
-function Get-ChangedCSharpFiles {
-    param([string] $Base)
-
-    $files = @()
-    $diffArgs = @("diff", "--name-only", "--diff-filter=ACMRT", "$Base...HEAD")
-    $output = & git @diffArgs 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        $diffArgs = @("diff", "--name-only", "--diff-filter=ACMRT", "$Base..HEAD")
-        $output = & git @diffArgs 2>$null
-    }
-    if ($LASTEXITCODE -ne 0 -or -not $output) {
-        return @()
-    }
-
-    foreach ($file in @($output)) {
-        if ($file -match '\.cs$' -and
-            $file -notmatch '(^|/)(bin|obj|build|release|stage)(/|$)') {
-            $files += $file
-        }
-    }
-    return $files
-}
-
-Invoke-Step -Name "workflow script tests" -Command {
-    ./.github/scripts/Test-UpdateChangelog.ps1
-    ./.github/scripts/Test-GenerateReleaseNotes.ps1
-    ./.github/scripts/Test-NightlyBetaPlan.ps1
-}
-
-if (-not $NoRestore) {
-    Invoke-Step -Name "restore" -Command {
-        dotnet restore VRCInventoryManager.slnx
-    }
-}
-
-$formatArgs = @("format", "VRCInventoryManager.slnx", "--verbosity", "minimal")
-if ($NoRestore) {
-    $formatArgs += "--no-restore"
-}
-if ($Check) {
-    $formatArgs += "--verify-no-changes"
-}
-
-if ($ChangedOnly) {
-    $changedCSharp = @(Get-ChangedCSharpFiles -Base $ChangedBase)
-    if ($changedCSharp.Count -eq 0) {
-        Write-Host "lint: no changed C# files to format-check."
-        exit 0
-    }
-
-    $formatArgs += "--include"
-    $formatArgs += $changedCSharp
-}
-
-Invoke-Step -Name "dotnet format" -Command {
-    dotnet @formatArgs
-}
-
-Write-Host "lint: passed."
+Write-Host 'lint: passed.'
+exit 0

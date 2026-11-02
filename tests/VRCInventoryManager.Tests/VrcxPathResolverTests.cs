@@ -4,21 +4,22 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class VrcxPathResolverTests
+public sealed class VrcxPathResolverTests
 {
-    public static Task ResolveConfiguredVrcxAndVrchatPathsAsync()
+    [Fact]
+    public Task ResolveConfiguredVrcxAndVrchatPathsAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
         {
             TestLayout layout = CreateLayout(root);
-            WriteJson(layout.VrcxConfigPath, new Dictionary<string, string>
+            WriteJson(layout.VrcxConfigPath, new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["VRCX_DatabaseLocation"] = @"%AppData%\VRCX\custom-store.sqlite3"
+                ["VRCX_DatabaseLocation"] = @"%AppData%\VRCX\custom-store.sqlite3",
             });
-            WriteJson(layout.VrchatConfigPath, new Dictionary<string, string>
+            WriteJson(layout.VrchatConfigPath, new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["picture_output_folder"] = @"%UserProfile%\VRChatMedia"
+                ["picture_output_folder"] = @"%UserProfile%\VRChatMedia",
             });
             WriteFile(layout.LocalInstallVersionPath, "VRCX/Test");
 
@@ -39,7 +40,8 @@ internal static class VrcxPathResolverTests
         }
     }
 
-    public static Task ResolveFallbacksFromCurrentUserFoldersAsync()
+    [Fact]
+    public Task ResolveFallbacksFromCurrentUserFoldersAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -61,15 +63,16 @@ internal static class VrcxPathResolverTests
         }
     }
 
-    public static Task ResolveVrcxDatabaseDirectoryOverrideAsync()
+    [Fact]
+    public Task ResolveVrcxDatabaseDirectoryOverrideAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
         {
             TestLayout layout = CreateLayout(root);
-            WriteJson(layout.VrcxConfigPath, new Dictionary<string, string>
+            WriteJson(layout.VrcxConfigPath, new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                ["VRCX_DatabaseLocation"] = @"%AppData%\VRCX\PortableData"
+                ["VRCX_DatabaseLocation"] = @"%AppData%\VRCX\PortableData",
             });
 
             KnownFolderPaths folders = KnownFolders.Resolve(layout.Options);
@@ -104,7 +107,7 @@ internal static class VrcxPathResolverTests
             UserProfilePath = userProfilePath,
             MyPicturesPath = myPicturesPath,
             ProgramFilesPath = programFilesPath,
-            ProgramFilesX86Path = programFilesX86Path
+            ProgramFilesX86Path = programFilesX86Path,
         };
 
         return new TestLayout(

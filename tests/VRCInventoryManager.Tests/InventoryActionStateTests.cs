@@ -3,45 +3,47 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class InventoryActionStateTests
+public sealed class InventoryActionStateTests
 {
-    public static Task DisableActionsWhileBusyAsync()
+    [Fact]
+    public Task DisableActionsWhileBusyAsync()
     {
         LocalAsset gif = CreateAsset("wave.gif", ".gif");
 
-        InventoryActionState idle = InventoryActionState.For(gif, remoteSelected: true, connected: true, stickerCount: 0, emojiCount: 0, busy: false);
-        TestAssert.True(idle.UploadSticker, "sticker upload when idle");
-        TestAssert.True(idle.UploadEmoji, "emoji upload when idle");
-        TestAssert.True(idle.UploadAnimatedEmoji, "animated emoji upload when idle");
-        TestAssert.True(idle.DeleteRemote, "delete when idle");
-        TestAssert.True(idle.Reconnect, "reconnect when idle");
-        TestAssert.True(idle.RefreshRemote, "refresh when idle");
+        var idle = InventoryActionState.For(gif, isRemoteSelected: true, isConnected: true, stickerCount: 0, emojiCount: 0, isBusy: false);
+        TestAssert.True(idle.CanUploadSticker, "sticker upload when idle");
+        TestAssert.True(idle.CanUploadEmoji, "emoji upload when idle");
+        TestAssert.True(idle.CanUploadAnimatedEmoji, "animated emoji upload when idle");
+        TestAssert.True(idle.CanDeleteRemote, "delete when idle");
+        TestAssert.True(idle.CanReconnect, "reconnect when idle");
+        TestAssert.True(idle.CanRefreshRemote, "refresh when idle");
 
-        InventoryActionState busy = InventoryActionState.For(gif, remoteSelected: true, connected: true, stickerCount: 0, emojiCount: 0, busy: true);
-        TestAssert.Equal(new InventoryActionState(false, false, false, false, false, false), busy, "every action while busy");
+        var isBusy = InventoryActionState.For(gif, isRemoteSelected: true, isConnected: true, stickerCount: 0, emojiCount: 0, isBusy: true);
+        TestAssert.Equal(new InventoryActionState(CanUploadSticker: false, CanUploadEmoji: false, CanUploadAnimatedEmoji: false, CanDeleteRemote: false, CanReconnect: false, CanRefreshRemote: false), isBusy, "every action while busy");
 
         return Task.CompletedTask;
     }
 
-    public static Task KeepUploadRulesWhenIdleAsync()
+    [Fact]
+    public Task KeepUploadRulesWhenIdleAsync()
     {
         LocalAsset png = CreateAsset("still.png", ".png");
 
-        InventoryActionState full = InventoryActionState.For(png, remoteSelected: false, connected: true, stickerCount: RemoteInventorySnapshot.StickerLimit, emojiCount: RemoteInventorySnapshot.EmojiLimit, busy: false);
-        TestAssert.False(full.UploadSticker, "sticker upload at the limit");
-        TestAssert.False(full.UploadEmoji, "emoji upload at the limit");
-        TestAssert.False(full.DeleteRemote, "delete with nothing selected");
+        var full = InventoryActionState.For(png, isRemoteSelected: false, isConnected: true, stickerCount: RemoteInventorySnapshot.StickerLimit, emojiCount: RemoteInventorySnapshot.EmojiLimit, isBusy: false);
+        TestAssert.False(full.CanUploadSticker, "sticker upload at the limit");
+        TestAssert.False(full.CanUploadEmoji, "emoji upload at the limit");
+        TestAssert.False(full.CanDeleteRemote, "delete with nothing selected");
 
-        InventoryActionState unknownCounts = InventoryActionState.For(png, remoteSelected: false, connected: true, stickerCount: -1, emojiCount: -1, busy: false);
-        TestAssert.True(unknownCounts.UploadSticker, "sticker upload before counts load");
-        TestAssert.True(unknownCounts.UploadEmoji, "emoji upload before counts load");
-        TestAssert.False(unknownCounts.UploadAnimatedEmoji, "animated upload for a plain PNG");
+        var unknownCounts = InventoryActionState.For(png, isRemoteSelected: false, isConnected: true, stickerCount: -1, emojiCount: -1, isBusy: false);
+        TestAssert.True(unknownCounts.CanUploadSticker, "sticker upload before counts load");
+        TestAssert.True(unknownCounts.CanUploadEmoji, "emoji upload before counts load");
+        TestAssert.False(unknownCounts.CanUploadAnimatedEmoji, "animated upload for a plain PNG");
 
-        InventoryActionState offline = InventoryActionState.For(png, remoteSelected: true, connected: false, stickerCount: 0, emojiCount: 0, busy: false);
-        TestAssert.Equal(new InventoryActionState(false, false, false, false, true, true), offline, "actions while disconnected");
+        var offline = InventoryActionState.For(png, isRemoteSelected: true, isConnected: false, stickerCount: 0, emojiCount: 0, isBusy: false);
+        TestAssert.Equal(new InventoryActionState(CanUploadSticker: false, CanUploadEmoji: false, CanUploadAnimatedEmoji: false, CanDeleteRemote: false, CanReconnect: true, CanRefreshRemote: true), offline, "actions while disconnected");
 
-        InventoryActionState noAsset = InventoryActionState.For(null, remoteSelected: false, connected: true, stickerCount: 0, emojiCount: 0, busy: false);
-        TestAssert.False(noAsset.UploadSticker || noAsset.UploadEmoji || noAsset.UploadAnimatedEmoji, "uploads with no local selection");
+        var noAsset = InventoryActionState.For(selectedAsset: null, isRemoteSelected: false, isConnected: true, stickerCount: 0, emojiCount: 0, isBusy: false);
+        TestAssert.False(noAsset.CanUploadSticker || noAsset.CanUploadEmoji || noAsset.CanUploadAnimatedEmoji, "uploads with no local selection");
 
         return Task.CompletedTask;
     }

@@ -19,10 +19,10 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
         typeof(VirtualizingTilePanel),
         new FrameworkPropertyMetadata(162.0, FrameworkPropertyMetadataOptions.AffectsMeasure));
 
-    private Size extent;
-    private Size viewport;
-    private Point offset;
-    private int columnCount = 1;
+    private Size _extent;
+    private Size _viewport;
+    private Point _offset;
+    private int _columnCount = 1;
 
     public double ItemWidth
     {
@@ -40,38 +40,38 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
 
     public bool CanVerticallyScroll { get; set; }
 
-    public double ExtentWidth => extent.Width;
+    public double ExtentWidth => _extent.Width;
 
-    public double ExtentHeight => extent.Height;
+    public double ExtentHeight => _extent.Height;
 
-    public double ViewportWidth => viewport.Width;
+    public double ViewportWidth => _viewport.Width;
 
-    public double ViewportHeight => viewport.Height;
+    public double ViewportHeight => _viewport.Height;
 
-    public double HorizontalOffset => offset.X;
+    public double HorizontalOffset => _offset.X;
 
-    public double VerticalOffset => offset.Y;
+    public double VerticalOffset => _offset.Y;
 
     public ScrollViewer? ScrollOwner { get; set; }
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        ItemsControl? owner = ItemsControl.GetItemsOwner(this);
+        var owner = ItemsControl.GetItemsOwner(this);
         int itemCount = owner?.Items.Count ?? 0;
         double availableWidth = double.IsInfinity(availableSize.Width) || availableSize.Width <= 0
             ? ItemWidth
             : availableSize.Width;
 
-        columnCount = Math.Max(1, (int)Math.Floor(availableWidth / ItemWidth));
-        int rowCount = itemCount == 0 ? 0 : (int)Math.Ceiling(itemCount / (double)columnCount);
-        viewport = new Size(availableWidth, double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height);
-        extent = new Size(availableWidth, rowCount * ItemHeight);
-        SetVerticalOffset(offset.Y);
+        _columnCount = Math.Max(1, (int)Math.Floor(availableWidth / ItemWidth));
+        int rowCount = itemCount == 0 ? 0 : (int)Math.Ceiling(itemCount / (double)_columnCount);
+        _viewport = new Size(availableWidth, double.IsInfinity(availableSize.Height) ? 0 : availableSize.Height);
+        _extent = new Size(availableWidth, rowCount * ItemHeight);
+        SetVerticalOffset(_offset.Y);
 
-        int firstVisibleRow = Math.Max(0, (int)Math.Floor(offset.Y / ItemHeight));
-        int visibleRowCount = Math.Max(1, (int)Math.Ceiling(viewport.Height / ItemHeight) + 2);
-        int firstIndex = Math.Min(itemCount, firstVisibleRow * columnCount);
-        int lastIndex = Math.Min(itemCount - 1, ((firstVisibleRow + visibleRowCount) * columnCount) - 1);
+        int firstVisibleRow = Math.Max(0, (int)Math.Floor(_offset.Y / ItemHeight));
+        int visibleRowCount = Math.Max(1, (int)Math.Ceiling(_viewport.Height / ItemHeight) + 2);
+        int firstIndex = Math.Min(itemCount, firstVisibleRow * _columnCount);
+        int lastIndex = Math.Min(itemCount - 1, ((firstVisibleRow + visibleRowCount) * _columnCount) - 1);
 
         CleanUpItems(firstIndex, lastIndex);
         if (itemCount > 0 && firstIndex <= lastIndex)
@@ -95,9 +95,9 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
                 continue;
             }
 
-            int row = itemIndex / columnCount;
-            int column = itemIndex % columnCount;
-            Rect bounds = new(column * ItemWidth, (row * ItemHeight) - offset.Y, ItemWidth, ItemHeight);
+            int row = itemIndex / _columnCount;
+            int column = itemIndex % _columnCount;
+            Rect bounds = new(column * ItemWidth, (row * ItemHeight) - _offset.Y, ItemWidth, ItemHeight);
             child.Arrange(bounds);
         }
 
@@ -111,22 +111,22 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
             return;
         }
 
-        int row = index / columnCount;
+        int row = index / _columnCount;
         double top = row * ItemHeight;
         double bottom = top + ItemHeight;
-        if (top < offset.Y)
+        if (top < _offset.Y)
         {
             SetVerticalOffset(top);
         }
-        else if (bottom > offset.Y + viewport.Height)
+        else if (bottom > _offset.Y + _viewport.Height)
         {
-            SetVerticalOffset(bottom - viewport.Height);
+            SetVerticalOffset(bottom - _viewport.Height);
         }
     }
 
-    public void LineUp() => SetVerticalOffset(offset.Y - ItemHeight);
+    public void LineUp() => SetVerticalOffset(_offset.Y - ItemHeight);
 
-    public void LineDown() => SetVerticalOffset(offset.Y + ItemHeight);
+    public void LineDown() => SetVerticalOffset(_offset.Y + ItemHeight);
 
     public void LineLeft()
     {
@@ -136,9 +136,9 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
     {
     }
 
-    public void PageUp() => SetVerticalOffset(offset.Y - viewport.Height);
+    public void PageUp() => SetVerticalOffset(_offset.Y - _viewport.Height);
 
-    public void PageDown() => SetVerticalOffset(offset.Y + viewport.Height);
+    public void PageDown() => SetVerticalOffset(_offset.Y + _viewport.Height);
 
     public void PageLeft()
     {
@@ -148,9 +148,9 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
     {
     }
 
-    public void MouseWheelUp() => SetVerticalOffset(offset.Y - (ItemHeight * 3));
+    public void MouseWheelUp() => SetVerticalOffset(_offset.Y - (ItemHeight * 3));
 
-    public void MouseWheelDown() => SetVerticalOffset(offset.Y + (ItemHeight * 3));
+    public void MouseWheelDown() => SetVerticalOffset(_offset.Y + (ItemHeight * 3));
 
     public void MouseWheelLeft()
     {
@@ -162,20 +162,20 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
 
     public void SetHorizontalOffset(double value)
     {
-        offset.X = 0;
+        _offset.X = 0;
         ScrollOwner?.InvalidateScrollInfo();
     }
 
     public void SetVerticalOffset(double value)
     {
-        double maxOffset = Math.Max(0, extent.Height - viewport.Height);
+        double maxOffset = Math.Max(0, _extent.Height - _viewport.Height);
         double newOffset = Math.Max(0, Math.Min(value, maxOffset));
-        if (Math.Abs(newOffset - offset.Y) < 0.1)
+        if (Math.Abs(newOffset - _offset.Y) < 0.1)
         {
             return;
         }
 
-        offset.Y = newOffset;
+        _offset.Y = newOffset;
         InvalidateMeasure();
         ScrollOwner?.InvalidateScrollInfo();
     }
@@ -199,11 +199,10 @@ internal sealed class VirtualizingTilePanel : VirtualizingPanel, IScrollInfo
         GeneratorPosition startPosition = generator.GeneratorPositionFromIndex(firstIndex);
         int childIndex = startPosition.Offset == 0 ? startPosition.Index : startPosition.Index + 1;
 
-        using IDisposable generation = generator.StartAt(startPosition, GeneratorDirection.Forward, true);
+        using IDisposable generation = generator.StartAt(startPosition, GeneratorDirection.Forward, allowStartAtRealizedItem: true);
         for (int itemIndex = firstIndex; itemIndex <= lastIndex; itemIndex++, childIndex++)
         {
-            bool newlyRealized;
-            UIElement child = (UIElement)generator.GenerateNext(out newlyRealized);
+            var child = (UIElement)generator.GenerateNext(out bool newlyRealized);
             if (newlyRealized)
             {
                 if (childIndex >= InternalChildren.Count)

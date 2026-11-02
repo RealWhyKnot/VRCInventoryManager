@@ -1,25 +1,24 @@
 using System.Drawing;
 using System.IO;
-using System.Windows.Media;
 using VRCInventoryManager.Core;
 using DrawingColor = System.Drawing.Color;
 using MediaColors = System.Windows.Media.Colors;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class GifSpriteSheetConverterTests
+public sealed class GifSpriteSheetConverterTests
 {
-    public static Task ConvertAnimatedGifToSpriteSheetAsync()
+    [Fact]
+    public Task ConvertAnimatedGifToSpriteSheetAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         string gifPath = Path.Combine(root, "animated.gif");
         try
         {
             TestFiles.WriteAnimatedGif(gifPath);
-            GifSpriteSheetConverter converter = new();
-            SpriteSheetResult result = converter.Convert(gifPath);
+            SpriteSheetResult result = GifSpriteSheetConverter.Convert(gifPath);
             TestAssert.Equal(2, result.Frames, "frame count");
-            TestAssert.True(result.FramesOverTime >= 1 && result.FramesOverTime <= 64, "fps clamp");
+            TestAssert.True(result.FramesOverTime is >= 1 and <= 64, "fps clamp");
             TestAssert.Equal(1024, result.CanvasSize, "canvas size");
             TestAssert.True(result.PngBytes.Length > 8, "png bytes present");
             TestAssert.Equal(0x89, result.PngBytes[0], "png signature 0");
@@ -32,7 +31,8 @@ internal static class GifSpriteSheetConverterTests
         }
     }
 
-    public static Task UsePowerOfTwoSpriteSheetGridAsync()
+    [Fact]
+    public Task UsePowerOfTwoSpriteSheetGridAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         string gifPath = Path.Combine(root, "six.gif");
@@ -46,8 +46,7 @@ internal static class GifSpriteSheetConverterTests
                 MediaColors.Yellow,
                 MediaColors.Purple,
                 MediaColors.Orange);
-            GifSpriteSheetConverter converter = new();
-            SpriteSheetResult result = converter.Convert(gifPath);
+            SpriteSheetResult result = GifSpriteSheetConverter.Convert(gifPath);
             TestAssert.Equal(6, result.Frames, "frame count");
             TestAssert.Equal(4, result.Grid, "grid");
             TestAssert.Equal(256, result.CellSize, "cell size");
@@ -59,20 +58,18 @@ internal static class GifSpriteSheetConverterTests
         }
     }
 
-    public static Task PreserveDurationWhenDownsamplingGifAsync()
+    [Fact]
+    public Task PreserveDurationWhenDownsamplingGifAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         string gifPath = Path.Combine(root, "many.gif");
         try
         {
-            System.Windows.Media.Color[] colors = Enumerable
+            System.Windows.Media.Color[] colors = [.. Enumerable
                 .Range(0, 128)
-                .Select(index => System.Windows.Media.Color.FromRgb((byte)index, (byte)(255 - index), (byte)(index / 2)))
-                .ToArray();
+                .Select(index => System.Windows.Media.Color.FromRgb((byte)index, (byte)(255 - index), (byte)(index / 2)))];
             TestFiles.WriteAnimatedGif(gifPath, 10, colors);
-
-            GifSpriteSheetConverter converter = new();
-            SpriteSheetResult result = converter.Convert(gifPath);
+            SpriteSheetResult result = GifSpriteSheetConverter.Convert(gifPath);
             TestAssert.Equal(64, result.Frames, "downsampled frame count");
             TestAssert.Equal(5, result.FramesOverTime, "duration-preserving fps");
             return Task.CompletedTask;
@@ -83,16 +80,15 @@ internal static class GifSpriteSheetConverterTests
         }
     }
 
-    public static Task ConvertOptimizedGifUsingCompositedFramesAsync()
+    [Fact]
+    public Task ConvertOptimizedGifUsingCompositedFramesAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         string gifPath = Path.Combine(root, "optimized.gif");
         try
         {
             TestFiles.WriteOptimizedPartialGif(gifPath);
-
-            GifSpriteSheetConverter converter = new();
-            SpriteSheetResult result = converter.Convert(gifPath, canvasSize: 128);
+            SpriteSheetResult result = GifSpriteSheetConverter.Convert(gifPath, canvasSize: 128);
 
             TestAssert.Equal(2, result.Frames, "frame count");
             TestAssert.Equal(10, result.FramesOverTime, "fps");
@@ -111,7 +107,7 @@ internal static class GifSpriteSheetConverterTests
     private static Bitmap Decode(byte[] bytes)
     {
         using MemoryStream stream = new(bytes);
-        using Image image = Image.FromStream(stream);
+        using var image = Image.FromStream(stream);
         return new Bitmap(image);
     }
 

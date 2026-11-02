@@ -4,9 +4,10 @@ using DrawingColor = System.Drawing.Color;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class LocalAssetTests
+public sealed class LocalAssetTests
 {
-    public static Task ScanRecursiveImageFilesAsync()
+    [Fact]
+    public async Task ScanRecursiveImageFilesAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -16,22 +17,21 @@ internal static class LocalAssetTests
             TestFiles.WritePng(Path.Combine(root, "first.png"), DrawingColor.Red);
             TestFiles.WritePng(Path.Combine(root, "nested", "second.jpg"), DrawingColor.Blue);
             TestFiles.WritePng(Path.Combine(root, "Emoji", "skip.png"), DrawingColor.Green);
-            File.WriteAllText(Path.Combine(root, "notes.txt"), "ignore");
+            await File.WriteAllTextAsync(Path.Combine(root, "notes.txt"), "ignore");
 
-            LocalAssetScanner scanner = new();
-            IReadOnlyList<LocalAsset> assets = scanner.Scan(root);
+            IReadOnlyList<LocalAsset> assets = LocalAssetScanner.Scan(root);
 
             TestAssert.Equal(3, assets.Count, "asset count");
-            TestAssert.True(assets.Any(asset => asset.Name == "first.png"), "first image found");
-            TestAssert.True(assets.Any(asset => asset.Name == "second.jpg"), "nested image found");
-            TestAssert.True(assets.Any(asset => asset.Bucket == "nested"), "bucket from directory");
-            TestAssert.True(assets.Any(asset => asset.Name == "first.png" && asset.RelativeDirectory == string.Empty), "root relative directory");
-            TestAssert.True(assets.Any(asset => asset.Name == "second.jpg" && asset.RelativeDirectory == "nested"), "nested relative directory");
+            TestAssert.True(assets.Any(asset => string.Equals(asset.Name, "first.png", StringComparison.Ordinal)), "first image found");
+            TestAssert.True(assets.Any(asset => string.Equals(asset.Name, "second.jpg", StringComparison.Ordinal)), "nested image found");
+            TestAssert.True(assets.Any(asset => string.Equals(asset.Bucket, "nested", StringComparison.Ordinal)), "bucket from directory");
+            TestAssert.True(assets.Any(asset => string.Equals(asset.Name, "first.png", StringComparison.Ordinal) && string.IsNullOrEmpty(asset.RelativeDirectory)), "root relative directory");
+            TestAssert.True(assets.Any(asset => string.Equals(asset.Name, "second.jpg", StringComparison.Ordinal) && string.Equals(asset.RelativeDirectory, "nested", StringComparison.Ordinal)), "nested relative directory");
 
-            IReadOnlyList<LocalAsset> filtered = scanner.Scan(root, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Emoji" });
+            IReadOnlyList<LocalAsset> filtered = LocalAssetScanner.Scan(root, new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Emoji" });
             TestAssert.Equal(2, filtered.Count, "excluded top-level folder");
-            TestAssert.False(filtered.Any(asset => asset.RelativeDirectory == "Emoji"), "excluded folder absent");
-            return Task.CompletedTask;
+            TestAssert.False(filtered.Any(asset => string.Equals(asset.RelativeDirectory, "Emoji", StringComparison.Ordinal)), "excluded folder absent");
+            return;
         }
         finally
         {
@@ -39,7 +39,8 @@ internal static class LocalAssetTests
         }
     }
 
-    public static Task FormatLocalAssetDetailsAsync()
+    [Fact]
+    public Task FormatLocalAssetDetailsAsync()
     {
         LocalAsset asset = new(
             @"C:\tmp\likeanimationStyle.png",
@@ -55,7 +56,8 @@ internal static class LocalAssetTests
         return Task.CompletedTask;
     }
 
-    public static Task WriteDebugLogFileAsync()
+    [Fact]
+    public async Task WriteDebugLogFileAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -64,15 +66,15 @@ internal static class LocalAssetTests
             string expectedPath = Path.Combine(root, "VRCInventoryManager.debug.log");
             TestAssert.Equal(expectedPath, DebugLog.GetExecutableLogPath(processPath), "exe log path");
 
-            using (DebugLog log = DebugLog.TryCreate(expectedPath, reset: true) ?? throw new InvalidOperationException("Could not create debug log."))
+            using (DebugLog log = DebugLog.TryCreate(expectedPath, reset: true, new FixedTimeProvider()) ?? throw new InvalidOperationException("Could not create debug log."))
             {
                 log.Info("manual entry");
             }
 
-            string content = File.ReadAllText(expectedPath);
+            string content = await File.ReadAllTextAsync(expectedPath);
             TestAssert.True(content.Contains("manual entry", StringComparison.Ordinal), "log entry written");
-            TestAssert.True(content.Contains("[INFO]", StringComparison.Ordinal), "log level written");
-            return Task.CompletedTask;
+            TestAssert.True(content.Contains("1970-01-01T00:00:00.0000000+00:00 [INFO] manual entry", StringComparison.Ordinal), "injected clock timestamp");
+            return;
         }
         finally
         {
@@ -80,7 +82,8 @@ internal static class LocalAssetTests
         }
     }
 
-    public static Task ParseAnimationStyleFromFileNameAsync()
+    [Fact]
+    public Task ParseAnimationStyleFromFileNameAsync()
     {
         TestAssert.Equal("snow", AnimationStyle.FromFileName("avatar_snowanimationStyle_64frames.png"), "snow style");
         TestAssert.Equal("stop", AnimationStyle.FromFileName("avatar_unknownanimationStyle.png"), "unknown style fallback");
@@ -88,7 +91,8 @@ internal static class LocalAssetTests
         return Task.CompletedTask;
     }
 
-    public static Task ParseLocalSpriteSheetMetadataAsync()
+    [Fact]
+    public Task ParseLocalSpriteSheetMetadataAsync()
     {
         LocalAsset asset = new(
             @"C:\tmp\avatar_inv_123_stopanimationStyle_64frames_24fps_pingpongloopStyle.png",
@@ -105,12 +109,13 @@ internal static class LocalAssetTests
         TestAssert.True(asset.DetailsText.Contains("64 frames @ 24 fps", StringComparison.Ordinal), "details includes animation");
 
         LocalAsset still = asset with { Name = "avatar_stopanimationStyle.png" };
-        TestAssert.Equal(null, still.Frames, "still frames");
+        TestAssert.Equal(expected: null, still.Frames, "still frames");
         TestAssert.False(still.HasSpriteSheetAnimation, "still image");
         return Task.CompletedTask;
     }
 
-    public static Task ClassifyEmojiUploadIntentAsync()
+    [Fact]
+    public Task ClassifyEmojiUploadIntentAsync()
     {
         LocalAsset png = new(
             @"C:\tmp\plain_stopanimationStyle.png",
@@ -127,7 +132,7 @@ internal static class LocalAssetTests
         {
             Path = @"C:\tmp\animated_stopanimationStyle.gif",
             Name = "animated_stopanimationStyle.gif",
-            Extension = ".gif"
+            Extension = ".gif",
         };
         TestAssert.False(gif.CanUploadAsStaticEmoji, "gif static upload denied");
         TestAssert.True(gif.CanUploadAsAnimatedEmoji, "gif animated upload allowed");
@@ -135,7 +140,7 @@ internal static class LocalAssetTests
         LocalAsset spriteSheet = png with
         {
             Path = @"C:\tmp\sheet_stopanimationStyle_64frames_24fps_linearloopStyle.png",
-            Name = "sheet_stopanimationStyle_64frames_24fps_linearloopStyle.png"
+            Name = "sheet_stopanimationStyle_64frames_24fps_linearloopStyle.png",
         };
         TestAssert.False(spriteSheet.CanUploadAsStaticEmoji, "sprite sheet static upload denied");
         TestAssert.True(spriteSheet.CanUploadAsAnimatedEmoji, "sprite sheet animated upload allowed");
@@ -145,10 +150,17 @@ internal static class LocalAssetTests
         TestAssert.Equal(64, frames, "sprite sheet metadata frames");
         TestAssert.Equal(24, framesOverTime, "sprite sheet metadata fps");
 
+        return Task.CompletedTask;
+    }
+
+    [Fact]
+    public Task RejectIncompleteAnimationMetadataAsync()
+    {
+        LocalAsset png = new("plain.png", "plain.png", string.Empty, ".png", 2048, DateTimeOffset.UnixEpoch);
         LocalAsset missingFps = png with
         {
             Path = @"C:\tmp\sheet_stopanimationStyle_64frames.png",
-            Name = "sheet_stopanimationStyle_64frames.png"
+            Name = "sheet_stopanimationStyle_64frames.png",
         };
         TestAssert.True(missingFps.CanUploadAsStaticEmoji, "missing fps static upload");
         TestAssert.False(missingFps.CanUploadAsAnimatedEmoji, "missing fps animated upload");
@@ -164,7 +176,7 @@ internal static class LocalAssetTests
         {
             Path = @"C:\tmp\sheet_stopanimationStyle_64frames_24fps.jpg",
             Name = "sheet_stopanimationStyle_64frames_24fps.jpg",
-            Extension = ".jpg"
+            Extension = ".jpg",
         };
         TestAssert.True(jpegWithSpriteName.CanUploadAsStaticEmoji, "jpeg sprite name static upload");
         TestAssert.False(jpegWithSpriteName.CanUploadAsAnimatedEmoji, "jpeg sprite name animated upload");

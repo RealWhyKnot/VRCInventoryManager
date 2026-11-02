@@ -8,14 +8,14 @@ using VRCInventoryManager.Core;
 
 namespace VRCInventoryManager;
 
-public partial class MainWindow
+internal sealed partial class MainWindow
 {
-    private string CurrentFolder => FolderCombo.SelectedItem is FolderChoice choice ? choice.Path : localFolders.EmojiFolder;
+    private string CurrentFolder => FolderCombo.SelectedItem is FolderChoice choice ? choice.Path : _localFolders.EmojiFolder;
 
     private void ConfigureFolders()
     {
-        localFolders = KnownFolders.Resolve();
-        FolderCombo.ItemsSource = BuildFolderChoices(settings.LocalRoot);
+        _localFolders = KnownFolders.Resolve();
+        FolderCombo.ItemsSource = BuildFolderChoices(_settings.LocalRoot);
         FolderCombo.DisplayMemberPath = nameof(FolderChoice.Name);
     }
 
@@ -35,36 +35,44 @@ public partial class MainWindow
             .FirstOrDefault(choice => string.Equals(choice.Name, "Emoji", StringComparison.OrdinalIgnoreCase));
     }
 
-    private async Task RefreshLocalAsync()
+    private async Task RefreshLocalAsync(CancellationToken cancellationToken = default)
     {
         string folder = CurrentFolder;
-        Stopwatch stopwatch = Stopwatch.StartNew();
-        SetBusy(true);
+        var stopwatch = Stopwatch.StartNew();
+        SetBusy(isBusy: true);
         try
         {
             CurrentFolderText.Text = folder;
             ActionStatusText.Text = "Scanning...";
-            thumbnailLoader.ClearLocal();
+            _thumbnailLoader.ClearLocal();
             IReadOnlySet<string>? excludedFolders = IsDefaultPhotosFolder(folder) ? KnownFolders.InventoryFolderNames : null;
-            allAssets = await Task.Run(() => scanner.Scan(folder, excludedFolders).ToList());
+            _allAssets = await Task.Run(() => LocalAssetScanner.Scan(folder, excludedFolders).ToList(), cancellationToken);
             ConfigureFolderTree(folder);
             ApplyFilter();
-            ActionStatusText.Text = allAssets.Count == 0 ? "No local images found." : "Ready.";
-            settings = settings with { LocalRoot = folder };
-            settingsStore.Save(settings);
-            App.Log.Info($"Scanned local folder '{folder}' and found {allAssets.Count} images in {stopwatch.ElapsedMilliseconds} ms.");
+            ActionStatusText.Text = _allAssets.Count == 0 ? "No local images found." : "Ready.";
+            _settings = _settings with { LocalRoot = folder };
+            _settingsStore.Save(_settings);
+            App.Log.Info($"Scanned local folder '{folder}' and found {_allAssets.Count} images in {stopwatch.ElapsedMilliseconds} ms.");
         }
-        catch (Exception ex)
+        catch (IOException exception)
         {
-            allAssets = [];
-            ConfigureFolderTree(folder);
-            ApplyFilter();
-            ActionStatusText.Text = "Local scan failed.";
-            App.Log.Error($"Local scan failed for '{folder}'.", ex);
+            HandleRefreshLocalFailure(exception, folder);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleRefreshLocalFailure(exception, folder);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleRefreshLocalFailure(exception, folder);
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleRefreshLocalFailure(exception, folder);
         }
         finally
         {
-            SetBusy(false);
+            SetBusy(isBusy: false);
         }
     }
 
@@ -72,18 +80,17 @@ public partial class MainWindow
     {
         LocalAsset? previousSelection = (LocalAssetList.SelectedItem as LocalAssetViewModel)?.Asset;
         string query = SearchBox.Text.Trim();
-        string? selectedFolder = selectedFolderNode?.RelativePath;
+        string? selectedFolder = _selectedFolderNode?.RelativePath;
         bool includeSubfolders = IncludeSubfoldersCheckBox.IsChecked != false;
-        filteredAssets = allAssets
+        _filteredAssets = [.. _allAssets
             .Where(asset => LocalAssetFilter.Matches(asset, selectedFolder, includeSubfolders, query))
-            .Select(asset => new LocalAssetViewModel(asset))
-            .ToList();
-        LocalAssetList.ItemsSource = filteredAssets;
+            .Select(asset => new LocalAssetViewModel(asset))];
+        LocalAssetList.ItemsSource = _filteredAssets;
 
-        LocalCountText.Text = $"{filteredAssets.Count:N0} files";
-        LocalEmptyText.Visibility = filteredAssets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        LocalCountText.Text = $"{_filteredAssets.Count:N0} files";
+        LocalEmptyText.Visibility = _filteredAssets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        if (filteredAssets.Count == 0)
+        if (_filteredAssets.Count == 0)
         {
             if (RemoteFileList.SelectedItem is null)
             {
@@ -95,26 +102,15 @@ public partial class MainWindow
 
         LocalAssetViewModel? nextSelection = previousSelection is null
             ? null
-            : filteredAssets.FirstOrDefault(asset => string.Equals(asset.Asset.Path, previousSelection.Path, StringComparison.OrdinalIgnoreCase));
-        if (nextSelection is not null)
-        {
-            LocalAssetList.SelectedItem = nextSelection;
-        }
-        else if (RemoteFileList.SelectedItem is not null)
-        {
-            LocalAssetList.SelectedItem = null;
-        }
-        else
-        {
-            LocalAssetList.SelectedItem = filteredAssets[0];
-        }
+            : _filteredAssets.FirstOrDefault(asset => string.Equals(asset.Asset.Path, previousSelection.Path, StringComparison.OrdinalIgnoreCase));
+        LocalAssetList.SelectedItem = nextSelection is not null ? nextSelection : RemoteFileList.SelectedItem is not null ? null : (object)_filteredAssets[0];
     }
 
     private async void FolderCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (loaded)
+        if (_isLoaded)
         {
-            await RefreshLocalAsync();
+            await RefreshLocalAsync(CancellationToken.None);
         }
     }
 
@@ -123,7 +119,7 @@ public partial class MainWindow
         OpenFolderDialog dialog = new()
         {
             Title = "Choose a VRChat image folder",
-            InitialDirectory = Directory.Exists(CurrentFolder) ? CurrentFolder : localFolders.EmojiFolder
+            InitialDirectory = Directory.Exists(CurrentFolder) ? CurrentFolder : _localFolders.EmojiFolder,
         };
 
         if (dialog.ShowDialog(this) == true)
@@ -132,41 +128,41 @@ public partial class MainWindow
             FolderCombo.ItemsSource = choices;
             FolderCombo.DisplayMemberPath = nameof(FolderChoice.Name);
             FolderCombo.SelectedItem = choices.First(choice => string.Equals(choice.Name, "Custom", StringComparison.OrdinalIgnoreCase));
-            await RefreshLocalAsync();
+            await RefreshLocalAsync(CancellationToken.None);
         }
     }
 
-    private async void RefreshLocal_Click(object sender, RoutedEventArgs e) => await RefreshLocalAsync();
+    private async void RefreshLocal_Click(object sender, RoutedEventArgs e) => await RefreshLocalAsync(CancellationToken.None);
 
     private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (!loaded)
+        if (!_isLoaded)
         {
             return;
         }
 
-        searchTimer.Stop();
-        searchTimer.Start();
+        _searchTimer.Stop();
+        _searchTimer.Start();
     }
 
     private void SearchTimer_Tick(object? sender, EventArgs e)
     {
-        searchTimer.Stop();
+        _searchTimer.Stop();
         ApplyFilter();
     }
 
     private void FolderTree_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
     {
-        if (loaded && !updatingFolderTree && e.NewValue is FolderNodeViewModel node)
+        if (_isLoaded && !_isUpdatingFolderTree && e.NewValue is FolderNodeViewModel node)
         {
-            selectedFolderNode = node;
+            _selectedFolderNode = node;
             ApplyFilter();
         }
     }
 
     private void IncludeSubfolders_Changed(object sender, RoutedEventArgs e)
     {
-        if (loaded)
+        if (_isLoaded)
         {
             ApplyFilter();
         }
@@ -174,28 +170,28 @@ public partial class MainWindow
 
     private void ConfigureFolderTree(string folder)
     {
-        updatingFolderTree = true;
+        _isUpdatingFolderTree = true;
         try
         {
-            FolderNode rootNode = FolderTreeBuilder.Build(allAssets, folder);
+            FolderNode rootNode = FolderTreeBuilder.Build(_allAssets, folder);
             FolderNodeViewModel rootViewModel = new(rootNode)
             {
                 IsExpanded = true,
-                IsSelected = true
+                IsSelected = true,
             };
-            folderNodes = [rootViewModel];
-            selectedFolderNode = rootViewModel;
-            FolderTree.ItemsSource = folderNodes;
+            _folderNodes = [rootViewModel];
+            _selectedFolderNode = rootViewModel;
+            FolderTree.ItemsSource = _folderNodes;
         }
         finally
         {
-            updatingFolderTree = false;
+            _isUpdatingFolderTree = false;
         }
     }
 
     private void Window_KeyDown(object sender, KeyEventArgs e)
     {
-        if (filteredAssets.Count == 0)
+        if (_filteredAssets.Count == 0)
         {
             return;
         }
@@ -203,7 +199,7 @@ public partial class MainWindow
         int index = LocalAssetList.SelectedIndex;
         if (e.Key == Key.Right)
         {
-            LocalAssetList.SelectedIndex = Math.Min(filteredAssets.Count - 1, index + 1);
+            LocalAssetList.SelectedIndex = Math.Min(_filteredAssets.Count - 1, index + 1);
             LocalAssetList.ScrollIntoView(LocalAssetList.SelectedItem);
         }
         else if (e.Key == Key.Left)
@@ -218,31 +214,31 @@ public partial class MainWindow
         }
         else if (e.Key == Key.End)
         {
-            LocalAssetList.SelectedIndex = filteredAssets.Count - 1;
+            LocalAssetList.SelectedIndex = _filteredAssets.Count - 1;
             LocalAssetList.ScrollIntoView(LocalAssetList.SelectedItem);
         }
     }
 
     private string GetInitialLocalRoot() =>
-        string.IsNullOrWhiteSpace(settings.LocalRoot) ? localFolders.EmojiFolder : settings.LocalRoot;
+        string.IsNullOrWhiteSpace(_settings.LocalRoot) ? _localFolders.EmojiFolder : _settings.LocalRoot;
 
     private IReadOnlyList<FolderChoice> BuildFolderChoices(string? customPath)
     {
-        string customRoot = string.IsNullOrWhiteSpace(customPath) ? localFolders.EmojiFolder : customPath;
+        string customRoot = string.IsNullOrWhiteSpace(customPath) ? _localFolders.EmojiFolder : customPath;
         return
         [
-            new FolderChoice("Photos", localFolders.PhotosFolder),
-            new FolderChoice("Emoji", localFolders.EmojiFolder),
-            new FolderChoice("Stickers", localFolders.StickersFolder),
-            new FolderChoice("Prints", localFolders.PrintsFolder),
-            new FolderChoice("Custom", customRoot)
+            new FolderChoice("Photos", _localFolders.PhotosFolder),
+            new FolderChoice("Emoji", _localFolders.EmojiFolder),
+            new FolderChoice("Stickers", _localFolders.StickersFolder),
+            new FolderChoice("Prints", _localFolders.PrintsFolder),
+            new FolderChoice("Custom", customRoot),
         ];
     }
 
     private bool IsDefaultPhotosFolder(string folder) =>
         string.Equals(
             Path.GetFullPath(folder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            Path.GetFullPath(localFolders.PhotosFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(_localFolders.PhotosFolder).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
             StringComparison.OrdinalIgnoreCase);
 
     private sealed record FolderChoice(string Name, string Path)

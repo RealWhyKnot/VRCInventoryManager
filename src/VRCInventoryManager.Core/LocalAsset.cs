@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace VRCInventoryManager.Core;
 
-public sealed record LocalAsset(
+internal sealed record LocalAsset(
     string Path,
     string Name,
     string Directory,
@@ -25,9 +25,9 @@ public sealed record LocalAsset(
 
     public bool CanUploadAsAnimatedEmoji => CanUploadPathAsAnimatedEmoji(Name, Extension);
 
-    public string AnimationStyle => VRCInventoryManager.Core.AnimationStyle.FromFileName(Name);
+    public string AnimationStyle => Core.AnimationStyle.FromFileName(Name);
 
-    public string LoopStyle => VRCInventoryManager.Core.LoopStyle.FromFileName(Name);
+    public string LoopStyle => Core.LoopStyle.FromFileName(Name);
 
     public string Bucket
     {
@@ -96,7 +96,7 @@ public sealed record LocalAsset(
 
     private static int? ReadIntMetadata(string name, string suffix)
     {
-        Match match = Regex.Match(name, @$"(?:^|_)(\d+){Regex.Escape(suffix)}(?:_|\.|$)", RegexOptions.IgnoreCase);
-        return match.Success && int.TryParse(match.Groups[1].Value, out int value) ? value : null;
+        Match match = Regex.Match(name, @$"(?:^|_)(\d+){Regex.Escape(suffix)}(?:_|\.|$)", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(1));
+        return match.Success && int.TryParse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture, out int value) ? value : null;
     }
 }

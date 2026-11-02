@@ -2,9 +2,9 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
-namespace VRCInventoryManager.Core;
+namespace VRCInventoryManager;
 
-public static class SpriteSheetFrameExtractor
+internal static class SpriteSheetFrameExtractor
 {
     public static bool CanAnimate(int? frames, int? framesOverTime) =>
         frames.GetValueOrDefault() > 1 && framesOverTime.GetValueOrDefault() > 0;
@@ -33,8 +33,8 @@ public static class SpriteSheetFrameExtractor
             outputFrames.Add(ResizeFrame(cropped, maxFrameWidth));
         }
 
-        TimeSpan delay = TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(framesOverTime, 1, GifSpriteSheetConverter.MaxFramesPerSecond));
-        return new AnimatedImageFrames(outputFrames, Enumerable.Repeat(delay, outputFrames.Count).ToArray());
+        var delay = TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(framesOverTime, 1, GifSpriteSheetConverter.MaxFramesPerSecond));
+        return new AnimatedImageFrames(outputFrames, [.. Enumerable.Repeat(delay, outputFrames.Count)]);
     }
 
     public static IReadOnlyList<Int32Rect> CalculateFrameRects(int spriteSheetWidth, int spriteSheetHeight, int frames)

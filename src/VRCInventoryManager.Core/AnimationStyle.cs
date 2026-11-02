@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace VRCInventoryManager.Core;
 
-public static partial class AnimationStyle
+internal static partial class AnimationStyle
 {
     public const string Default = "stop";
 
@@ -34,25 +34,19 @@ public static partial class AnimationStyle
         "spin",
         "splash",
         "stop",
-        "zzz"
+        "zzz",
     };
 
     public static string FromFileName(string fileName)
     {
         Match match = FileNameStyleRegex().Match(fileName);
-        if (!match.Success)
-        {
-            return Default;
-        }
-
-        string style = match.Groups["style"].Value.ToLowerInvariant();
-        return AllowedStyles.Contains(style) ? style : Default;
+        return !match.Success ? Default : AllowedStyles.TryGetValue(match.Groups["style"].Value, out string? style) ? style : Default;
     }
 
     public static bool IsAllowed(string style) => AllowedStyles.Contains(style);
 
-    public static IReadOnlyList<string> All => AllowedStyles.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    public static IReadOnlyList<string> All => [.. AllowedStyles.Order(StringComparer.OrdinalIgnoreCase)];
 
-    [GeneratedRegex(@"(?<style>[A-Za-z]+)animationStyle", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"(?<style>[A-Za-z]+)animationStyle", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, 1000)]
     private static partial Regex FileNameStyleRegex();
 }

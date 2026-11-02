@@ -6,19 +6,20 @@ param(
     [string] $OutputPath = $env:GITHUB_OUTPUT
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 function Invoke-Git {
-    param([Parameter(Mandatory=$true)][string[]] $Arguments, [switch] $AllowFailure)
+    [CmdletBinding()]
+    [OutputType([object[]])]
+    param([Parameter(Mandatory = $true)][string[]] $Arguments, [switch] $AllowFailure)
 
     $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
+    $ErrorActionPreference = 'Continue'
     try {
-        $output = & git @Arguments 2>$null
+        $output = & { $ErrorActionPreference = 'Continue'; git @Arguments 2>$null }
         $exitCode = $LASTEXITCODE
-    }
-    finally {
+    } finally {
         $ErrorActionPreference = $previousPreference
     }
 
@@ -32,7 +33,9 @@ function Invoke-Git {
 }
 
 function Get-FirstOutput {
-    param($Value)
+    [CmdletBinding()]
+    [OutputType([string])]
+    param([object] $Value)
 
     $items = @($Value)
     if ($items.Count -eq 0) {
@@ -42,32 +45,41 @@ function Get-FirstOutput {
 }
 
 function Get-CentralTimeZone {
-    foreach ($id in @("Central Standard Time", "America/Chicago")) {
+    [CmdletBinding()]
+    [OutputType([System.TimeZoneInfo])]
+    param()
+    foreach ($id in @('Central Standard Time', 'America/Chicago')) {
         try {
             return [System.TimeZoneInfo]::FindSystemTimeZoneById($id)
-        }
-        catch {
+        } catch [System.TimeZoneNotFoundException] {
+            continue
+        } catch [System.InvalidTimeZoneException] {
+            continue
         }
     }
-    throw "Could not resolve the America/Chicago release time zone."
+    throw 'Could not resolve the America/Chicago release time zone.'
 }
 
 function Get-DateStamp {
+    [CmdletBinding()]
+    [OutputType([string])]
     param([datetime] $Utc)
 
     if ($Utc.Kind -ne [System.DateTimeKind]::Utc) {
         $Utc = $Utc.ToUniversalTime()
     }
     $central = [System.TimeZoneInfo]::ConvertTimeFromUtc($Utc, (Get-CentralTimeZone))
-    return $central.ToString("yyyy.M.d", [System.Globalization.CultureInfo]::InvariantCulture)
+    return $central.ToString('yyyy.M.d', [System.Globalization.CultureInfo]::InvariantCulture)
 }
 
 function Get-NextRevision {
+    [CmdletBinding()]
+    [OutputType([int])]
     param([string] $DateStamp)
 
     $escapedDate = [regex]::Escape($DateStamp)
     $pattern = "^v$escapedDate\.(\d+)(-[A-Za-z0-9][A-Za-z0-9.-]*)?$"
-    $tags = @(Invoke-Git -Arguments @("tag", "--list", "v$DateStamp.*"))
+    $tags = @(Invoke-Git -Arguments @('tag', '--list', "v$DateStamp.*"))
     $highest = -1
     foreach ($tag in $tags) {
         if ($tag -match $pattern) {
@@ -81,42 +93,59 @@ function Get-NextRevision {
 }
 
 function Write-OutputValue {
-    param([string] $Name, [string] $Value)
+    [CmdletBinding()]
+    [OutputType([void])]
+    param([string] $Name, [string] $Value, [string] $OutputPath)
 
     $line = "$Name=$Value"
     Write-Host $line
     if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
-        Add-Content -LiteralPath $OutputPath -Value $line -Encoding UTF8
+        [IO.File]::AppendAllText($OutputPath, $line + [Environment]::NewLine)
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 $resolvedRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
 Push-Location $resolvedRoot
 try {
-    $head = (Get-FirstOutput -Value (Invoke-Git -Arguments @("rev-parse", "HEAD"))).Trim()
-    $latestTagOutput = Get-FirstOutput -Value (Invoke-Git -Arguments @("describe", "--tags", "--abbrev=0", "--match", "v*", "HEAD") -AllowFailure)
-    $latestTag = ""
+    $head = (Get-FirstOutput -Value (Invoke-Git -Arguments @('rev-parse', 'HEAD'))).Trim()
+    $tagArguments = @('describe', '--tags', '--abbrev=0', '--match', 'v*', 'HEAD')
+    $latestTagOutput = Get-FirstOutput -Value (Invoke-Git -Arguments $tagArguments -AllowFailure)
+    $latestTag = ''
     if (-not [string]::IsNullOrWhiteSpace($latestTagOutput)) {
         $latestTag = $latestTagOutput.Trim()
     }
 
     if ([string]::IsNullOrWhiteSpace($latestTag)) {
-        $commitCount = [int]((Get-FirstOutput -Value (Invoke-Git -Arguments @("rev-list", "--count", "--no-merges", "HEAD"))).Trim())
+        $countArguments = @('rev-list', '--count', '--no-merges', 'HEAD')
     } else {
-        $commitCount = [int]((Get-FirstOutput -Value (Invoke-Git -Arguments @("rev-list", "--count", "--no-merges", "$latestTag..HEAD"))).Trim())
+        $countArguments = @('rev-list', '--count', '--no-merges', "$latestTag..HEAD")
     }
 
+    $commitCount = [int]((Get-FirstOutput -Value (Invoke-Git -Arguments $countArguments)).Trim())
     $hasChanges = $commitCount -gt 0
     $dateStamp = Get-DateStamp -Utc $NowUtc
     $revision = Get-NextRevision -DateStamp $dateStamp
     $nextTag = "v$dateStamp.$revision-beta"
 
-    Write-OutputValue -Name "has_changes" -Value $hasChanges.ToString().ToLowerInvariant()
-    Write-OutputValue -Name "commit_count" -Value ([string]$commitCount)
-    Write-OutputValue -Name "latest_tag" -Value $latestTag
-    Write-OutputValue -Name "head_sha" -Value $head
-    Write-OutputValue -Name "next_tag" -Value $nextTag
-}
-finally {
+    Write-OutputValue -Name 'has_changes' -Value $hasChanges.ToString().ToLowerInvariant() -OutputPath $OutputPath
+    Write-OutputValue -Name 'commit_count' -Value ([string]$commitCount) -OutputPath $OutputPath
+    Write-OutputValue -Name 'latest_tag' -Value $latestTag -OutputPath $OutputPath
+    Write-OutputValue -Name 'head_sha' -Value $head -OutputPath $OutputPath
+    Write-OutputValue -Name 'next_tag' -Value $nextTag -OutputPath $OutputPath
+} finally {
     Pop-Location
 }
+
+exit 0

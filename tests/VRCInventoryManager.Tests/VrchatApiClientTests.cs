@@ -7,9 +7,10 @@ using DrawingColor = System.Drawing.Color;
 
 namespace VRCInventoryManager.Tests;
 
-internal static class VrchatApiClientTests
+public sealed class VrchatApiClientTests
 {
-    public static async Task ConstructRequestsAsync()
+    [Fact]
+    public async Task ConstructRequestsAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -19,10 +20,10 @@ internal static class VrchatApiClientTests
             TestFiles.WritePng(pngPath, DrawingColor.Green);
             TestFiles.WritePng(animatedPngPath, DrawingColor.Blue);
 
-            FakeHttpHandler handler = new();
-            HttpClient httpClient = new(handler)
+            using FakeHttpHandler handler = new();
+            using HttpClient httpClient = new(handler)
             {
-                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/"),
             };
             VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
 
@@ -31,7 +32,7 @@ internal static class VrchatApiClientTests
             RemoteInventorySnapshot snapshot = await client.GetInventorySnapshotAsync();
             TestAssert.Equal(1, snapshot.StickerCount, "sticker count");
             TestAssert.Equal(2, snapshot.EmojiCount, "emoji count");
-            TestAssert.Equal("https://files.example/file_emoji.png", snapshot.AllItems.Single(item => item.Id == "file_emoji").PreviewUrl, "preview url");
+            TestAssert.Equal("https://files.example/file_emoji.png", snapshot.AllItems.Single(item => string.Equals(item.Id, "file_emoji", StringComparison.Ordinal)).PreviewUrl, "preview url");
 
             UploadResult upload = await client.UploadStaticEmojiAsync(pngPath, "like");
             TestAssert.Equal("file_uploaded", upload.Id, "upload id");
@@ -39,7 +40,7 @@ internal static class VrchatApiClientTests
             TestAssert.Equal("file_uploaded", animatedUpload.Id, "animated upload id");
             await client.DeleteFileAsync("file_uploaded");
 
-            List<CapturedRequest> uploadRequests = handler.Requests.Where(request => request.Method == HttpMethod.Post).ToList();
+            List<CapturedRequest> uploadRequests = [.. handler.Requests.Where(request => request.Method == HttpMethod.Post)];
             TestAssert.Equal(2, uploadRequests.Count, "upload request count");
             CapturedRequest uploadRequest = uploadRequests[0];
             TestAssert.True(uploadRequest.Body.Contains("name=tag", StringComparison.Ordinal), "multipart has tag name");
@@ -48,14 +49,7 @@ internal static class VrchatApiClientTests
             TestAssert.False(uploadRequest.Body.Contains("name=frames", StringComparison.Ordinal), "static multipart has no frame count");
             TestAssert.False(uploadRequest.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "static multipart has no fps");
             TestAssert.False(uploadRequest.Body.Contains("name=loopStyle", StringComparison.Ordinal), "static multipart has no loop style");
-            CapturedRequest animatedUploadRequest = uploadRequests[1];
-            TestAssert.True(animatedUploadRequest.Body.Contains("emojianimated", StringComparison.Ordinal), "multipart has animated emoji tag");
-            TestAssert.True(animatedUploadRequest.Body.Contains("name=frames", StringComparison.Ordinal), "multipart has frame count");
-            TestAssert.True(animatedUploadRequest.Body.Contains("64", StringComparison.Ordinal), "multipart has frame count value");
-            TestAssert.True(animatedUploadRequest.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "multipart has fps");
-            TestAssert.True(animatedUploadRequest.Body.Contains("24", StringComparison.Ordinal), "multipart has fps value");
-            TestAssert.True(animatedUploadRequest.Body.Contains("name=loopStyle", StringComparison.Ordinal), "multipart has loop style");
-            TestAssert.True(animatedUploadRequest.Body.Contains("pingpong", StringComparison.Ordinal), "multipart has loop style value");
+            AssertAnimatedUpload(uploadRequests[1]);
             TestAssert.True(uploadRequest.Headers.TryGetValue("Cookie", out string? cookieHeader), "cookie header present");
             TestAssert.Equal("auth=auth_cookie; twoFactorAuth=two_factor_cookie", cookieHeader, "cookie header");
             TestAssert.True(handler.Requests.Any(request => request.Method == HttpMethod.Delete && request.Uri.AbsolutePath.EndsWith("/file/file_uploaded", StringComparison.Ordinal)), "delete path");
@@ -66,7 +60,8 @@ internal static class VrchatApiClientTests
         }
     }
 
-    public static async Task RejectAnimatedSourcesForStaticEmojiUploadsAsync()
+    [Fact]
+    public async Task RejectAnimatedSourcesForStaticEmojiUploadsAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -76,10 +71,10 @@ internal static class VrchatApiClientTests
             TestFiles.WriteAnimatedGif(gifPath);
             TestFiles.WritePng(spriteSheetPath, DrawingColor.Purple);
 
-            FakeHttpHandler handler = new();
-            HttpClient httpClient = new(handler)
+            using FakeHttpHandler handler = new();
+            using HttpClient httpClient = new(handler)
             {
-                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/"),
             };
             VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
 
@@ -98,7 +93,8 @@ internal static class VrchatApiClientTests
         }
     }
 
-    public static async Task RejectInvalidSpriteSheetUploadsAsync()
+    [Fact]
+    public async Task RejectInvalidSpriteSheetUploadsAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -108,10 +104,10 @@ internal static class VrchatApiClientTests
             TestFiles.WritePng(nonSquarePath, 128, 64, DrawingColor.Purple);
             TestFiles.WritePng(tooManyFramesPath, 128, 128, DrawingColor.Purple);
 
-            FakeHttpHandler handler = new();
-            HttpClient httpClient = new(handler)
+            using FakeHttpHandler handler = new();
+            using HttpClient httpClient = new(handler)
             {
-                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/"),
             };
             VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
 
@@ -130,7 +126,8 @@ internal static class VrchatApiClientTests
         }
     }
 
-    public static async Task UploadGifEmojiThroughAnimatedAutoRouteAsync()
+    [Fact]
+    public async Task UploadGifEmojiThroughAnimatedAutoRouteAsync()
     {
         string root = TestFiles.CreateTempDirectory();
         try
@@ -138,10 +135,10 @@ internal static class VrchatApiClientTests
             string gifPath = Path.Combine(root, "direct_spinanimationStyle_pingpongloopStyle.gif");
             TestFiles.WriteAnimatedGif(gifPath);
 
-            FakeHttpHandler handler = new();
-            HttpClient httpClient = new(handler)
+            using FakeHttpHandler handler = new();
+            using HttpClient httpClient = new(handler)
             {
-                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/")
+                BaseAddress = new Uri("https://api.vrchat.cloud/api/1/"),
             };
             VrchatApiClient client = new(httpClient, new VrcxAuthCookies("auth_cookie", "two_factor_cookie"), "TestAgent/1");
 
@@ -163,6 +160,17 @@ internal static class VrchatApiClientTests
         }
     }
 
+    private static void AssertAnimatedUpload(CapturedRequest animatedUploadRequest)
+    {
+        TestAssert.True(animatedUploadRequest.Body.Contains("emojianimated", StringComparison.Ordinal), "multipart has animated emoji tag");
+        TestAssert.True(animatedUploadRequest.Body.Contains("name=frames", StringComparison.Ordinal), "multipart has frame count");
+        TestAssert.True(animatedUploadRequest.Body.Contains("64", StringComparison.Ordinal), "multipart has frame count value");
+        TestAssert.True(animatedUploadRequest.Body.Contains("name=framesOverTime", StringComparison.Ordinal), "multipart has fps");
+        TestAssert.True(animatedUploadRequest.Body.Contains("24", StringComparison.Ordinal), "multipart has fps value");
+        TestAssert.True(animatedUploadRequest.Body.Contains("name=loopStyle", StringComparison.Ordinal), "multipart has loop style");
+        TestAssert.True(animatedUploadRequest.Body.Contains("pingpong", StringComparison.Ordinal), "multipart has loop style value");
+    }
+
     private sealed record CapturedRequest(HttpMethod Method, Uri Uri, Dictionary<string, string> Headers, string Body);
 
     private sealed class FakeHttpHandler : HttpMessageHandler
@@ -174,7 +182,7 @@ internal static class VrchatApiClientTests
             string body = request.Content is null
                 ? string.Empty
                 : await request.Content.ReadAsStringAsync(cancellationToken);
-            Dictionary<string, string> headers = request.Headers.ToDictionary(
+            var headers = request.Headers.ToDictionary(
                 header => header.Key,
                 header => string.Join("; ", header.Value),
                 StringComparer.OrdinalIgnoreCase);
@@ -210,24 +218,18 @@ internal static class VrchatApiClientTests
                 }
             }
 
-            if (path.EndsWith("/file/image", StringComparison.Ordinal) && request.Method == HttpMethod.Post)
-            {
-                return Json(HttpStatusCode.OK, """{"id":"file_uploaded"}""");
-            }
-
-            if (path.EndsWith("/file/file_uploaded", StringComparison.Ordinal) && request.Method == HttpMethod.Delete)
-            {
-                return Json(HttpStatusCode.OK, """{"id":"file_uploaded"}""");
-            }
-
-            return Json(HttpStatusCode.NotFound, """{"error":{"message":"not found"}}""");
+            return path.EndsWith("/file/image", StringComparison.Ordinal) && request.Method == HttpMethod.Post
+                ? Json(HttpStatusCode.OK, """{"id":"file_uploaded"}""")
+                : path.EndsWith("/file/file_uploaded", StringComparison.Ordinal) && request.Method == HttpMethod.Delete
+                ? Json(HttpStatusCode.OK, """{"id":"file_uploaded"}""")
+                : Json(HttpStatusCode.NotFound, """{"error":{"message":"not found"}}""");
         }
 
         private static HttpResponseMessage Json(HttpStatusCode statusCode, string json)
         {
             return new HttpResponseMessage(statusCode)
             {
-                Content = new StringContent(json, Encoding.UTF8, "application/json")
+                Content = new StringContent(json, Encoding.UTF8, "application/json"),
             };
         }
     }

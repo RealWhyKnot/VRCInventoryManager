@@ -7,9 +7,6 @@ namespace VRCInventoryManager;
 
 internal sealed class FolderNodeViewModel : INotifyPropertyChanged
 {
-    private bool isExpanded;
-    private bool isSelected;
-
     public FolderNodeViewModel(FolderNode node)
     {
         Node = node;
@@ -35,12 +32,12 @@ internal sealed class FolderNodeViewModel : INotifyPropertyChanged
 
     public bool IsExpanded
     {
-        get => isExpanded;
+        get;
         set
         {
-            if (isExpanded != value)
+            if (field != value)
             {
-                isExpanded = value;
+                field = value;
                 OnPropertyChanged();
             }
         }
@@ -48,12 +45,12 @@ internal sealed class FolderNodeViewModel : INotifyPropertyChanged
 
     public bool IsSelected
     {
-        get => isSelected;
+        get;
         set
         {
-            if (isSelected != value)
+            if (field != value)
             {
-                isSelected = value;
+                field = value;
                 OnPropertyChanged();
             }
         }

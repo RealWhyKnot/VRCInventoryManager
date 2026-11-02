@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed record RemoteInventorySnapshot(
+internal sealed record RemoteInventorySnapshot(
     IReadOnlyList<RemoteInventoryItem> Stickers,
     IReadOnlyList<RemoteInventoryItem> Emojis,
     IReadOnlyList<RemoteInventoryItem> AnimatedEmojis)
@@ -11,10 +11,9 @@ public sealed record RemoteInventorySnapshot(
     public int StickerCount => Stickers.Count;
     public int EmojiCount => Emojis.Count + AnimatedEmojis.Count;
 
-    public IReadOnlyList<RemoteInventoryItem> AllItems => Stickers
+    public IReadOnlyList<RemoteInventoryItem> AllItems => [.. Stickers
         .Concat(Emojis)
         .Concat(AnimatedEmojis)
         .OrderByDescending(item => item.CreatedAt)
-        .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
-        .ToArray();
+        .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)];
 }

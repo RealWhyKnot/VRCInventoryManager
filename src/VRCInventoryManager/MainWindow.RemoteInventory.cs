@@ -6,173 +6,215 @@ using WpfMessageBox = System.Windows.MessageBox;
 
 namespace VRCInventoryManager;
 
-public partial class MainWindow
+internal sealed partial class MainWindow
 {
-    private async Task ConnectAsync()
+    private async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            SetBusy(true);
-            App.Log.Info("Connecting through VRCX cookie store.");
-            ConnectionStatusText.Text = "Connecting through VRCX...";
-            VrcxAuthSession session = await Task.Run(cookieProvider.LoadDefaultSession);
-            thumbnailLoader.ConfigureRemoteAuth(session.Cookies, session.UserAgent);
-            httpClient?.Dispose();
-            httpClient = new HttpClient();
-            apiClient = new VrchatApiClient(httpClient, session.Cookies, session.UserAgent);
-
-            bool authenticated = await apiClient.CheckAuthAsync();
-            if (!authenticated)
-            {
-                DisconnectRemote();
-                ConnectionStatusText.Text = "VRCX cookies were found, but VRChat rejected the session.";
-                App.Log.Warning("VRChat rejected the VRCX session.");
-                return;
-            }
-
-            await apiClient.FetchConfigAsync();
-            ConnectionStatusText.Text = "Connected through VRCX.";
-            App.Log.Info("Connected through VRCX.");
-            await RefreshRemoteAsync();
+            await ConnectCoreAsync(cancellationToken);
         }
-        catch (Exception ex)
+        catch (System.IO.IOException exception)
         {
-            DisconnectRemote();
-            ConnectionStatusText.Text = $"Disconnected: {ex.Message}";
-            App.Log.Error("VRCX connection failed.", ex);
+            HandleConnectFailure(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleConnectFailure(exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleConnectFailure(exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleConnectFailure(exception);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleConnectFailure(exception);
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleConnectFailure(exception);
+        }
+        catch (Microsoft.Data.Sqlite.SqliteException exception)
+        {
+            HandleConnectFailure(exception);
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleConnectFailure(exception);
         }
         finally
         {
-            SetBusy(false);
+            SetBusy(isBusy: false);
             UpdateButtons();
         }
     }
 
-    private async Task RefreshRemoteAsync()
+    private async Task RefreshRemoteAsync(CancellationToken cancellationToken = default)
     {
-        if (apiClient is null)
+        if (_apiClient is null)
         {
             ConnectionStatusText.Text = "Disconnected. Reconnect to load VRChat inventory.";
             return;
         }
 
-        SetBusy(true);
+        SetBusy(isBusy: true);
         try
         {
-            RemoteInventorySnapshot snapshot = await apiClient.GetInventorySnapshotAsync();
-            stickerCount = snapshot.StickerCount;
-            emojiCount = snapshot.EmojiCount;
-            remoteItems.Clear();
+            RemoteInventorySnapshot snapshot = await _apiClient.GetInventorySnapshotAsync(cancellationToken);
+            _stickerCount = snapshot.StickerCount;
+            _emojiCount = snapshot.EmojiCount;
+            _remoteItems.Clear();
             foreach (RemoteInventoryItem item in snapshot.AllItems)
             {
-                remoteItems.Add(new RemoteInventoryViewModel(item));
+                _remoteItems.Add(new RemoteInventoryViewModel(item));
             }
 
             RemoteCountText.Text = $"Stickers {snapshot.StickerCount}/{RemoteInventorySnapshot.StickerLimit}  Emojis {snapshot.EmojiCount}/{RemoteInventorySnapshot.EmojiLimit}";
-            RemoteEmptyText.Visibility = remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            RemoteEmptyText.Visibility = _remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
             App.Log.Info($"Loaded remote inventory: {snapshot.StickerCount} stickers, {snapshot.EmojiCount} emojis.");
         }
-        catch (Exception ex)
+        catch (System.IO.IOException exception)
         {
-            ConnectionStatusText.Text = $"Inventory refresh failed: {ex.Message}";
-            App.Log.Error("Remote inventory refresh failed.", ex);
+            HandleRefreshRemoteFailure(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleRefreshRemoteFailure(exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleRefreshRemoteFailure(exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleRefreshRemoteFailure(exception);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleRefreshRemoteFailure(exception);
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleRefreshRemoteFailure(exception);
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleRefreshRemoteFailure(exception);
         }
         finally
         {
-            SetBusy(false);
+            SetBusy(isBusy: false);
             UpdateButtons();
         }
     }
 
     private async Task UploadSelectedAsync(
-        Func<VrchatApiClient, LocalAsset, Task<UploadResult>> upload,
-        Func<LocalAsset, bool>? squareStillPayload = null)
+        Func<VrchatApiClient, LocalAsset, CancellationToken, Task<UploadResult>> upload,
+        Func<LocalAsset, bool>? squareStillPayload = null, CancellationToken cancellationToken = default)
     {
-        if (busyDepth > 0)
+        LocalAsset? asset = GetSelectedUploadAsset();
+        if (asset is null)
         {
             return;
         }
 
-        if (apiClient is null)
-        {
-            WpfMessageBox.Show(this, "Connect to VRCX before uploading.", "Not connected", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        if (LocalAssetList.SelectedItem is not LocalAssetViewModel selected)
-        {
-            return;
-        }
-
-        LocalAsset asset = selected.Asset;
-        SetBusy(true);
+        SetBusy(isBusy: true);
         try
         {
-            bool useSquareStillPayload = squareStillPayload?.Invoke(asset) ?? true;
-            ActionStatusText.Text = GetUploadStatusText(asset, useSquareStillPayload);
-            App.Log.Info($"Uploading '{asset.Name}'.");
-            UploadResult result = await upload(apiClient, asset);
-            ActionStatusText.Text = $"Uploaded {result.Id}";
-            App.Log.Info($"Upload completed: {result.Id}.");
-            await RefreshRemoteAsync();
+            await UploadSelectedCoreAsync(asset, upload, squareStillPayload, cancellationToken);
         }
-        catch (Exception ex)
+        catch (System.IO.IOException exception)
         {
-            ActionStatusText.Text = "Upload failed.";
-            App.Log.Error("Upload failed.", ex);
-            WpfMessageBox.Show(this, ex.Message, "Upload failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (ArgumentException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (System.Runtime.InteropServices.ExternalException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (OutOfMemoryException exception)
+        {
+            HandleUploadSelectedFailure(exception);
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleUploadSelectedFailure(exception);
         }
         finally
         {
-            SetBusy(false);
+            SetBusy(isBusy: false);
             UpdateButtons();
         }
     }
 
     private async void Reconnect_Click(object sender, RoutedEventArgs e)
     {
-        if (busyDepth == 0)
+        if (_busyDepth == 0)
         {
-            await ConnectAsync();
+            await ConnectAsync(CancellationToken.None);
         }
     }
 
     private async void RefreshRemote_Click(object sender, RoutedEventArgs e)
     {
-        if (busyDepth == 0)
+        if (_busyDepth == 0)
         {
-            await RefreshRemoteAsync();
+            await RefreshRemoteAsync(CancellationToken.None);
         }
     }
 
-    private async void UploadSticker_Click(object sender, RoutedEventArgs e)
-    {
-        await UploadSelectedAsync((client, asset) => client.UploadStickerAsync(asset.Path));
-    }
+    private async void UploadSticker_Click(object sender, RoutedEventArgs e) => await UploadSelectedAsync((client, asset, cancellationToken) => client.UploadStickerAsync(asset.Path, cancellationToken), cancellationToken: CancellationToken.None);
 
     private async void UploadEmoji_Click(object sender, RoutedEventArgs e)
     {
         await UploadSelectedAsync(
-            (client, asset) => client.UploadEmojiAsync(asset.Path, asset.AnimationStyle),
-            asset => !asset.CanUploadAsAnimatedEmoji);
+            (client, asset, cancellationToken) => client.UploadEmojiAsync(asset.Path, asset.AnimationStyle, cancellationToken),
+            asset => !asset.CanUploadAsAnimatedEmoji, CancellationToken.None);
     }
 
     private async void UploadAnimatedEmoji_Click(object sender, RoutedEventArgs e)
     {
         await UploadSelectedAsync(
-            (client, asset) => asset.IsGif
-                ? client.UploadAnimatedEmojiAsync(asset.Path, asset.AnimationStyle)
+            (client, asset, cancellationToken) => asset.IsGif
+                ? client.UploadAnimatedEmojiAsync(asset.Path, asset.AnimationStyle, cancellationToken)
                 : client.UploadAnimatedEmojiSpriteSheetAsync(
                     asset.Path,
                     asset.AnimationStyle,
                     asset.Frames!.Value,
-                    asset.FramesOverTime!.Value),
-            _ => false);
+                    asset.FramesOverTime!.Value, cancellationToken),
+            _ => false, CancellationToken.None);
     }
 
     private void RemoteFileList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (suppressRemoteSelectionChanged)
+        if (_shouldSuppressRemoteSelectionChanged)
         {
             return;
         }
@@ -181,9 +223,9 @@ public partial class MainWindow
         {
             RemoteInventoryItem item = selected.Item;
             RemoteSelectedText.Text = $"{item.Summary}\n{item.Id}\n{item.Status}";
-            suppressLocalSelectionChanged = true;
+            _shouldSuppressLocalSelectionChanged = true;
             LocalAssetList.SelectedItem = null;
-            suppressLocalSelectionChanged = false;
+            _shouldSuppressLocalSelectionChanged = false;
             LoadRemotePreview(item);
         }
         else
@@ -191,7 +233,7 @@ public partial class MainWindow
             RemoteSelectedText.Text = string.Empty;
             if (LocalAssetList.SelectedItem is null)
             {
-                LoadRemotePreview(null);
+                LoadRemotePreview(item: null);
             }
         }
 
@@ -200,7 +242,7 @@ public partial class MainWindow
 
     private async void DeleteRemote_Click(object sender, RoutedEventArgs e)
     {
-        if (busyDepth > 0 || apiClient is null || RemoteFileList.SelectedItem is not RemoteInventoryViewModel selected)
+        if (_busyDepth > 0 || _apiClient is null || RemoteFileList.SelectedItem is not RemoteInventoryViewModel selected)
         {
             return;
         }
@@ -217,36 +259,59 @@ public partial class MainWindow
             return;
         }
 
-        SetBusy(true);
+        SetBusy(isBusy: true);
         try
         {
-            await apiClient.DeleteFileAsync(item.Id);
+            await _apiClient.DeleteFileAsync(item.Id, CancellationToken.None);
             ActionStatusText.Text = $"Deleted {item.Id}";
             App.Log.Info($"Deleted remote file {item.Id}.");
-            await RefreshRemoteAsync();
+            await RefreshRemoteAsync(CancellationToken.None);
         }
-        catch (Exception ex)
+        catch (System.IO.IOException exception)
         {
-            App.Log.Error($"Delete failed for remote file {item.Id}.", ex);
-            WpfMessageBox.Show(this, ex.Message, "Delete failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            HandleDeleteRemoteClickFailure(exception, item);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            HandleDeleteRemoteClickFailure(exception, item);
+        }
+        catch (InvalidOperationException exception)
+        {
+            HandleDeleteRemoteClickFailure(exception, item);
+        }
+        catch (HttpRequestException exception)
+        {
+            HandleDeleteRemoteClickFailure(exception, item);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            HandleDeleteRemoteClickFailure(exception, item);
+        }
+        catch (NotSupportedException exception)
+        {
+            HandleDeleteRemoteClickFailure(exception, item);
+        }
+        catch (OperationCanceledException exception)
+        {
+            HandleDeleteRemoteClickFailure(exception, item);
         }
         finally
         {
-            SetBusy(false);
+            SetBusy(isBusy: false);
             UpdateButtons();
         }
     }
 
     private void DisconnectRemote()
     {
-        apiClient = null;
-        thumbnailLoader.ClearRemoteAuth();
-        httpClient?.Dispose();
-        httpClient = null;
+        _apiClient = null;
+        _thumbnailLoader.ClearRemoteAuth();
+        _httpClient?.Dispose();
+        _httpClient = null;
         RemoteCountText.Text = string.Empty;
-        remoteItems.Clear();
-        stickerCount = -1;
-        emojiCount = -1;
+        _remoteItems.Clear();
+        _stickerCount = -1;
+        _emojiCount = -1;
         RemoteEmptyText.Visibility = Visibility.Visible;
     }
 
@@ -263,9 +328,76 @@ public partial class MainWindow
                 ? "Preparing PNG for upload..."
                 : "Uploading...";
         }
-        catch (Exception)
+        catch (System.IO.IOException)
         {
             return "Uploading...";
         }
+        catch (UnauthorizedAccessException)
+        {
+            return "Uploading...";
+        }
+        catch (ArgumentException)
+        {
+            return "Uploading...";
+        }
+        catch (OutOfMemoryException)
+        {
+            return "Uploading...";
+        }
+    }
+
+    private async Task ConnectCoreAsync(CancellationToken cancellationToken)
+    {
+        SetBusy(isBusy: true);
+        App.Log.Info("Connecting through VRCX cookie store.");
+        ConnectionStatusText.Text = "Connecting through VRCX...";
+        VrcxAuthSession session = await Task.Run(_cookieProvider.LoadDefaultSession, cancellationToken);
+        _thumbnailLoader.ConfigureRemoteAuth(session.Cookies, session.UserAgent);
+        _httpClient?.Dispose();
+        _httpClient = new HttpClient();
+        _apiClient = new VrchatApiClient(_httpClient, session.Cookies, session.UserAgent);
+
+        bool authenticated = await _apiClient.CheckAuthAsync(cancellationToken);
+        if (!authenticated)
+        {
+            DisconnectRemote();
+            ConnectionStatusText.Text = "VRCX cookies were found, but VRChat rejected the session.";
+            App.Log.Warning("VRChat rejected the VRCX session.");
+            return;
+        }
+
+        await _apiClient.FetchConfigAsync(cancellationToken);
+        ConnectionStatusText.Text = "Connected through VRCX.";
+        App.Log.Info("Connected through VRCX.");
+        await RefreshRemoteAsync(cancellationToken);
+
+    }
+
+    private async Task UploadSelectedCoreAsync(LocalAsset asset, Func<VrchatApiClient, LocalAsset, CancellationToken, Task<UploadResult>> upload, Func<LocalAsset, bool>? squareStillPayload, CancellationToken cancellationToken)
+    {
+        bool useSquareStillPayload = squareStillPayload?.Invoke(asset) ?? true;
+        ActionStatusText.Text = GetUploadStatusText(asset, useSquareStillPayload);
+        App.Log.Info($"Uploading '{asset.Name}'.");
+        UploadResult result = await upload(_apiClient!, asset, cancellationToken);
+        ActionStatusText.Text = $"Uploaded {result.Id}";
+        App.Log.Info($"Upload completed: {result.Id}.");
+        await RefreshRemoteAsync(cancellationToken);
+
+    }
+
+    private LocalAsset? GetSelectedUploadAsset()
+    {
+        if (_busyDepth > 0)
+        {
+            return null;
+        }
+
+        if (_apiClient is null)
+        {
+            WpfMessageBox.Show(this, "Connect to VRCX before uploading.", "Not connected", MessageBoxButton.OK, MessageBoxImage.Information);
+            return null;
+        }
+
+        return LocalAssetList.SelectedItem is not LocalAssetViewModel selected ? null : selected.Asset;
     }
 }

@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public static class VrchatFileTags
+internal static class VrchatFileTags
 {
     public const string Sticker = "sticker";
     public const string Emoji = "emoji";

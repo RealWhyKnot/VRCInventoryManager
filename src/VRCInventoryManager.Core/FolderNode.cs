@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public sealed record FolderNode(
+internal sealed record FolderNode(
     string Name,
     string RelativePath,
     string FullPath,

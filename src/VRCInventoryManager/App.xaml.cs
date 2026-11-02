@@ -1,15 +1,15 @@
 namespace VRCInventoryManager;
 
-public partial class App : System.Windows.Application
+internal sealed partial class App : System.Windows.Application
 {
-    private VRCInventoryManager.Core.DebugLog debugLog = VRCInventoryManager.Core.DebugLog.Disabled;
+    private Core.DebugLog _debugLog = Core.DebugLog.Disabled;
 
-    internal static VRCInventoryManager.Core.DebugLog Log =>
-        Current is App app ? app.debugLog : VRCInventoryManager.Core.DebugLog.Disabled;
+    internal static Core.DebugLog Log =>
+        Current is App app ? app._debugLog : Core.DebugLog.Disabled;
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
-        debugLog = VRCInventoryManager.Core.DebugLog.CreateNearExecutable();
+        _debugLog = Core.DebugLog.CreateNearExecutable(TimeProvider.System);
         Log.Info("Application starting.");
 
         DispatcherUnhandledException += (_, args) =>
@@ -47,7 +47,7 @@ public partial class App : System.Windows.Application
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
         Log.Info($"Application exiting with code {e.ApplicationExitCode}.");
-        debugLog.Dispose();
+        _debugLog.Dispose();
         base.OnExit(e);
         Updater.Relaunch();
     }

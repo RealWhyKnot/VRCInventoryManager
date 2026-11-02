@@ -1,6 +1,6 @@
 namespace VRCInventoryManager.Core;
 
-public static class FolderTreeBuilder
+internal static class FolderTreeBuilder
 {
     public static FolderNode Build(IReadOnlyList<LocalAsset> assets, string root)
     {
@@ -35,36 +35,42 @@ public static class FolderTreeBuilder
             ? string.Empty
             : Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-    private sealed class FolderAccumulator(string name, string relativePath, string fullPath)
+    private sealed class FolderAccumulator
     {
-        private readonly Dictionary<string, FolderAccumulator> children = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, FolderAccumulator> _children = new(StringComparer.OrdinalIgnoreCase);
 
-        public string Name { get; } = name;
+        public FolderAccumulator(string name, string relativePath, string fullPath)
+        {
+            Name = name;
+            RelativePath = relativePath;
+            FullPath = fullPath;
+        }
 
-        public string RelativePath { get; } = relativePath;
+        public string Name { get; }
 
-        public string FullPath { get; } = fullPath;
+        public string RelativePath { get; }
+
+        public string FullPath { get; }
 
         public int DirectCount { get; set; }
 
         public FolderAccumulator GetOrAdd(string name, string relativePath, string fullPath)
         {
-            if (children.TryGetValue(name, out FolderAccumulator? existing))
+            if (_children.TryGetValue(name, out FolderAccumulator? existing))
             {
                 return existing;
             }
 
             FolderAccumulator created = new(name, relativePath, fullPath);
-            children.Add(name, created);
+            _children.Add(name, created);
             return created;
         }
 
         public FolderNode ToNode()
         {
-            FolderNode[] childNodes = children.Values
+            FolderNode[] childNodes = [.. _children.Values
                 .OrderByDescending(child => child.Name, StringComparer.OrdinalIgnoreCase)
-                .Select(child => child.ToNode())
-                .ToArray();
+                .Select(child => child.ToNode())];
             int totalCount = DirectCount + childNodes.Sum(child => child.TotalCount);
             return new FolderNode(Name, RelativePath, FullPath, DirectCount, totalCount, childNodes);
         }

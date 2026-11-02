@@ -6,41 +6,41 @@ using WpfCursors = System.Windows.Input.Cursors;
 
 namespace VRCInventoryManager;
 
-public partial class MainWindow
+internal sealed partial class MainWindow
 {
     private void UpdateButtons()
     {
         LocalAsset? selectedAsset = LocalAssetList.SelectedItem is LocalAssetViewModel selected
             ? selected.Asset
             : null;
-        InventoryActionState actions = InventoryActionState.For(
+        var actions = InventoryActionState.For(
             selectedAsset,
             RemoteFileList.SelectedItem is RemoteInventoryViewModel,
-            apiClient is not null,
-            stickerCount,
-            emojiCount,
-            busyDepth > 0);
-        UploadStickerButton.IsEnabled = actions.UploadSticker;
-        UploadEmojiButton.IsEnabled = actions.UploadEmoji;
-        UploadAnimatedEmojiButton.IsEnabled = actions.UploadAnimatedEmoji;
-        DeleteRemoteButton.IsEnabled = actions.DeleteRemote;
-        ReconnectButton.IsEnabled = actions.Reconnect;
-        RefreshRemoteButton.IsEnabled = actions.RefreshRemote;
-        RemoteEmptyText.Visibility = remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        LocalEmptyText.Visibility = filteredAssets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            _apiClient is not null,
+            _stickerCount,
+            _emojiCount,
+            _busyDepth > 0);
+        UploadStickerButton.IsEnabled = actions.CanUploadSticker;
+        UploadEmojiButton.IsEnabled = actions.CanUploadEmoji;
+        UploadAnimatedEmojiButton.IsEnabled = actions.CanUploadAnimatedEmoji;
+        DeleteRemoteButton.IsEnabled = actions.CanDeleteRemote;
+        ReconnectButton.IsEnabled = actions.CanReconnect;
+        RefreshRemoteButton.IsEnabled = actions.CanRefreshRemote;
+        RemoteEmptyText.Visibility = _remoteItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        LocalEmptyText.Visibility = _filteredAssets.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void SetBusy(bool isBusy)
     {
-        busyDepth = isBusy ? busyDepth + 1 : Math.Max(0, busyDepth - 1);
-        bool active = busyDepth > 0;
+        _busyDepth = isBusy ? _busyDepth + 1 : Math.Max(0, _busyDepth - 1);
+        bool active = _busyDepth > 0;
         Cursor = active ? WpfCursors.Wait : WpfCursors.Arrow;
         BusyBar.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         HeaderStatusText.Text = active ? "Working..." : "Ready";
         UpdateButtons();
-        if (!active && pendingUpdate is not null)
+        if (!active && _pendingUpdate is not null)
         {
-            Dispatcher.BeginInvoke(OfferUpdate);
+            _ = OfferUpdateWhenIdleAsync(CancellationToken.None);
         }
     }
 
@@ -59,12 +59,15 @@ public partial class MainWindow
         }
         catch (DllNotFoundException)
         {
+            return;
         }
         catch (EntryPointNotFoundException)
         {
+            return;
         }
     }
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [LibraryImport("dwmapi.dll")]
+    private static partial int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 }
