@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Fixed
+- Pin the .NET SDK the lock files were made with (7bd847c)
+
+### Fixed
 - **ui:** Disable inventory actions while a task runs (07752fb)
 
 ### Added
