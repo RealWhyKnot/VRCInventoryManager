@@ -136,7 +136,7 @@ jobs:
           tag: ${{ steps.release_tag.outputs.tag }}
           notes-file: release/notes.md
           prerelease: ${{ steps.release_tag.outputs.prerelease }}
-          delete-existing: 'true'
+          draft-first: 'true'
           assets: |
             release/${{ steps.assets.outputs.zip_name }}
             release/${{ steps.assets.outputs.setup_name }}
