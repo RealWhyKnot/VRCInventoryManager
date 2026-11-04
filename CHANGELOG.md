@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Fixed
+- Pin the publish runtime to win-x64 (d73c527)
+- **deps:** Update the .NET SDK and NuGet packages (4ecdfe6)
+
+### Fixed
 - Pin the .NET SDK the lock files were made with (7bd847c)
 
 ### Fixed
