@@ -92,10 +92,8 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install PSScriptAnalyzer
-        shell: pwsh
-        run: |
-          Install-PSResource -Name PSScriptAnalyzer -Version 1.25.0 -TrustRepository -Quiet
+      - name: Set up PSScriptAnalyzer
+        uses: RealWhyKnot/workflows/setup-pssa@v1
 
       - name: Run full gate
         shell: bash
@@ -103,7 +101,7 @@ jobs:
           #!/usr/bin/env bash
           set -euo pipefail
           shopt -s inherit_errexit
-          timeout 600 pwsh -NoProfile -File .github/lint/lint.ps1
+          timeout 900 pwsh -NoProfile -File .github/lint/lint.ps1
 
       - name: Publish app
         shell: pwsh

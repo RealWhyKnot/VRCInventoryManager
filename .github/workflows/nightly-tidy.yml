@@ -75,10 +75,8 @@ jobs:
         with:
           python-version: '3.13'
 
-      - name: Install PSScriptAnalyzer
-        shell: pwsh
-        run: |
-          Install-PSResource -Name PSScriptAnalyzer -Version 1.25.0 -TrustRepository -Quiet
+      - name: Set up PSScriptAnalyzer
+        uses: RealWhyKnot/workflows/setup-pssa@v1
 
       - name: Run full lint check
         shell: pwsh
