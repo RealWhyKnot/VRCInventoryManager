@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Changed
+- **deps:** Update Meziantou.Analyzer (88be973)
+
 ### Fixed
 - Pin the publish runtime to win-x64 (d73c527)
 - **deps:** Update the .NET SDK and NuGet packages (4ecdfe6)
