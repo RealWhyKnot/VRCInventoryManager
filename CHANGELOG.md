@@ -3,6 +3,9 @@
 ## Unreleased
 
 ### Changed
+- **deps:** Update Meziantou.Analyzer to 3.0.339 (3e732a1)
+
+### Changed
 - **deps:** Update Meziantou.Analyzer (88be973)
 
 ### Fixed
