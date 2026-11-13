@@ -21,14 +21,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install shell tools
-        shell: bash
-        run: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          shopt -s inherit_errexit
-          sudo apt-get update
-          sudo apt-get install -y shellcheck shfmt
+      - name: Set up shell tools
+        uses: RealWhyKnot/workflows/setup-shell-tools@v1
 
       - name: Set up actionlint
         uses: raven-actions/actionlint@v2
