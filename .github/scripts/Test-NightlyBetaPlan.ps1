@@ -10,7 +10,7 @@ function Invoke-TestGit {
     [OutputType([object[]])]
     param([string] $RepoRoot, [string[]] $Arguments)
 
-    Push-Location $RepoRoot
+    Push-Location -LiteralPath $RepoRoot
     try {
         $output = & git @Arguments
         if ($LASTEXITCODE -ne 0) {

@@ -25,10 +25,11 @@ function Invoke-Git {
     $ErrorActionPreference = 'Continue'
     try {
         $output = & git @Arguments 2>$null
+        $exitCode = $LASTEXITCODE
     } finally {
         $ErrorActionPreference = $previousPreference
     }
-    if ($LASTEXITCODE -ne 0) {
+    if ($exitCode -ne 0) {
         return $null
     }
     return @($output)

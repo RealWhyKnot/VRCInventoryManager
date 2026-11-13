@@ -117,7 +117,7 @@ function Get-UnreleasedBody {
 }
 
 if (-not $RepoRoot) {
-    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+    $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 }
 
 $ChangelogPath = Join-Path $RepoRoot 'CHANGELOG.md'

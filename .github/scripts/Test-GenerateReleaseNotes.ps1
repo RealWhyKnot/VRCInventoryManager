@@ -59,7 +59,7 @@ $pushed = $false
 
 try {
     $null = New-Item -ItemType Directory -Force -Path $tempRoot
-    Push-Location $tempRoot
+    Push-Location -LiteralPath $tempRoot
     $pushed = $true
 
     Invoke-TestGit -Arguments @('init', '-q')

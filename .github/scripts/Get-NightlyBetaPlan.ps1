@@ -117,7 +117,7 @@ function Write-OutputValue {
 
 
 $resolvedRoot = (Resolve-Path -LiteralPath $RepoRoot).Path
-Push-Location $resolvedRoot
+Push-Location -LiteralPath $resolvedRoot
 try {
     $head = (Get-FirstOutput -Value (Invoke-Git -Arguments @('rev-parse', 'HEAD'))).Trim()
     $tagArguments = @('describe', '--tags', '--abbrev=0', '--match', 'v*', 'HEAD')

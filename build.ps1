@@ -61,7 +61,7 @@ function Write-IntegrityManifest {
     }
     Write-Host "Integrity:   $manifestPath"
 }
-Set-Location $PSScriptRoot
+Set-Location -LiteralPath $PSScriptRoot
 
 
 
