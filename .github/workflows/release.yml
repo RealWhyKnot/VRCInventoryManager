@@ -28,11 +28,11 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Resolve release tag
         id: release_tag
@@ -49,17 +49,9 @@ jobs:
           workflow: ci.yml
 
       - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-release-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
-          restore-keys: |
-            nuget-release-${{ runner.os }}-
 
       - name: Validate workflow scripts
         shell: pwsh
@@ -81,22 +73,28 @@ jobs:
 
       - name: Promote Unreleased -> tagged section
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
-          ./.github/scripts/Update-Changelog.ps1 -Mode Promote -Version '${{ steps.release_tag.outputs.tag }}'
+          ./.github/scripts/Update-Changelog.ps1 -Mode Promote -Version $env:RELEASE_TAG
           New-Item -ItemType Directory -Force -Path .changelog-stash | Out-Null
           Copy-Item CHANGELOG.md .changelog-stash/CHANGELOG.md -Force
 
       - name: Build release assets
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
-          $version = '${{ steps.release_tag.outputs.tag }}' -replace '^v', ''
+          $version = $env:RELEASE_TAG -replace '^v', ''
           ./build.ps1 -Version $version -Release -RequireInstaller
 
       - name: Write integrity manifest
         id: assets
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
-          $tag = '${{ steps.release_tag.outputs.tag }}'
+          $tag = $env:RELEASE_TAG
           $zip = Get-ChildItem release -File -Filter '*.zip' | Select-Object -First 1
           $setup = Get-ChildItem release -File -Filter '*Setup.exe' | Select-Object -First 1
           if (-not $zip -or -not $setup) {
@@ -118,13 +116,18 @@ jobs:
 
       - name: Write release notes
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+          ZIP_NAME: ${{ steps.assets.outputs.zip_name }}
+          SETUP_NAME: ${{ steps.assets.outputs.setup_name }}
+          INTEGRITY_NAME: ${{ steps.assets.outputs.integrity_name }}
         run: |
           ./.github/scripts/Generate-ReleaseNotes.ps1 `
-            -Tag '${{ steps.release_tag.outputs.tag }}' `
-            -Repo '${{ github.repository }}' `
-            -ZipName '${{ steps.assets.outputs.zip_name }}' `
-            -SetupName '${{ steps.assets.outputs.setup_name }}' `
-            -IntegrityName '${{ steps.assets.outputs.integrity_name }}' |
+            -Tag $env:RELEASE_TAG `
+            -Repo $env:GITHUB_REPOSITORY `
+            -ZipName $env:ZIP_NAME `
+            -SetupName $env:SETUP_NAME `
+            -IntegrityName $env:INTEGRITY_NAME |
             Set-Content -Path release/notes.md -Encoding utf8
           if (-not (Test-Path release/notes.md) -or (Get-Item release/notes.md).Length -eq 0) {
             throw "Release notes were not generated."
