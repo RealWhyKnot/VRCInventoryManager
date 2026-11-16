@@ -114,6 +114,16 @@ jobs:
           "integrity_name=$integrityName" >> $env:GITHUB_OUTPUT
           "integrity_path=$integrityPath" >> $env:GITHUB_OUTPUT
 
+      - name: Checksums
+        id: checksums
+        uses: RealWhyKnot/workflows/checksums@v1
+        with:
+          archives: |
+            release/${{ steps.assets.outputs.zip_name }}
+            release/${{ steps.assets.outputs.setup_name }}
+          manifest: "false"
+          sidecar: "true"
+
       - name: Write release notes
         shell: pwsh
         env:
@@ -144,6 +154,7 @@ jobs:
             release/${{ steps.assets.outputs.zip_name }}
             release/${{ steps.assets.outputs.setup_name }}
             ${{ steps.assets.outputs.integrity_path }}
+            ${{ steps.checksums.outputs.sidecars }}
 
       - name: Restore the promoted changelog
         if: ${{ steps.release_tag.outputs.prerelease != 'true' }}
