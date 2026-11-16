@@ -1,6 +1,9 @@
 * text=auto eol=lf
 *.cs text eol=crlf
+*.csx text eol=crlf
 *.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
 .github/lint/** text eol=lf
 .github/lint/CSharpStyle.cs text eol=crlf
 .editorconfig text eol=lf
