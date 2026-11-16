@@ -3,6 +3,10 @@
 ## Unreleased
 
 ### Changed
+- **deps:** Update Meziantou.Analyzer to 3.0.341 (623636a)
+- **deps:** Update the .NET SDK to 10.0.404 (b240511)
+
+### Changed
 - **deps:** Update Meziantou.Analyzer to 3.0.339 (3e732a1)
 
 ### Changed
