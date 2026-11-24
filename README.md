@@ -2,7 +2,7 @@
 
 A Windows desktop app for browsing your local VRChat screenshots and managing the stickers and emoji you've uploaded.
 
-[Download](https://github.com/RealWhyKnot/VRCInventoryManager/releases/latest) · [Changelog](CHANGELOG.md) · [Report a bug](https://github.com/RealWhyKnot/VRCInventoryManager/issues/new?template=bug_report.yml) · [Security](.github/SECURITY.md)
+[Download](https://github.com/RealWhyKnot/VRCInventoryManager/releases/latest) · [Changelog](CHANGELOG.md) · [Report a bug](https://github.com/RealWhyKnot/VRCInventoryManager/issues/new) · [Security](.github/SECURITY.md)
 
 ## What it does
 
@@ -41,7 +41,7 @@ That makes a compressed, self-contained win-x64 zip with a single exe under `rel
 
 ## Bug reports and changes
 
-Open an [issue](https://github.com/RealWhyKnot/VRCInventoryManager/issues/new/choose) for bugs and ideas. Please don't send a pull request without talking to me first. [CONTRIBUTING.md](CONTRIBUTING.md) explains why.
+Open an [issue](https://github.com/RealWhyKnot/VRCInventoryManager/issues/new) for bugs and ideas. Please don't send a pull request without talking to me first. [CONTRIBUTING.md](CONTRIBUTING.md) explains why.
 
 ## License
 
