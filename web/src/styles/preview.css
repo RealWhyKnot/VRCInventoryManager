@@ -1,0 +1,277 @@
+.stage-pane {
+  background: var(--well);
+}
+
+.stage-pane > .pane-head {
+  background: var(--panel);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.backdrops .button {
+  gap: var(--s1);
+}
+
+.stage-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: 0 var(--s4) var(--s4);
+}
+
+.viewer {
+  display: flex;
+  flex: 1 0 244px;
+  flex-direction: column;
+  min-inline-size: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.platen {
+  position: relative;
+  flex: 1;
+  min-block-size: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--stage-dark);
+  box-shadow:
+    inset 0 0 0 1px var(--rim),
+    inset 0 0 32px var(--shade);
+}
+
+.platen[data-backdrop="light"] {
+  background: var(--stage-light);
+
+  --stage-guides: var(--stage-guides-dark);
+}
+
+.registration {
+  position: absolute;
+  z-index: 1;
+  inline-size: var(--s4);
+  block-size: var(--s4);
+  border: 1px solid var(--stage-guides);
+  pointer-events: none;
+}
+
+.registration-tl {
+  inset: var(--s3) auto auto var(--s3);
+  border-inline-end: 0;
+  border-block-end: 0;
+}
+
+.registration-tr {
+  inset: var(--s3) var(--s3) auto auto;
+  border-inline-start: 0;
+  border-block-end: 0;
+}
+
+.registration-bl {
+  inset: auto auto var(--s3) var(--s3);
+  border-inline-end: 0;
+  border-block-start: 0;
+}
+
+.registration-br {
+  inset: auto var(--s3) var(--s3) auto;
+  border-inline-start: 0;
+  border-block-start: 0;
+}
+
+.preview {
+  position: absolute;
+  inset: var(--s5) var(--s6);
+  display: grid;
+  place-items: center;
+}
+
+.preview-media {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 0;
+  object-fit: contain;
+}
+
+.preview-status,
+.stage-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--well);
+  color: var(--muted);
+  font-size: var(--f1);
+}
+
+.viewer-caption {
+  position: absolute;
+  inset: auto auto var(--s3) var(--s6);
+  pointer-events: none;
+}
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--s7);
+  padding: var(--s2);
+  border-block-start: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.transport-idle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--control);
+}
+
+.transport-idle .icon {
+  color: var(--quiet);
+}
+
+.frame-count {
+  flex: none;
+  color: var(--text);
+  font-size: var(--f1);
+  white-space: nowrap;
+}
+
+.frame-progress {
+  flex: 1;
+  min-inline-size: var(--s2);
+  block-size: var(--s1);
+  border-radius: var(--radius-small);
+  background: var(--line);
+}
+
+.frame-progress-fill {
+  display: block;
+  inline-size: var(--frame-progress, 0%);
+  block-size: 100%;
+  border-radius: var(--radius-small);
+  background: var(--teal);
+}
+
+.preview-loop[aria-pressed="true"] {
+  border-color: var(--teal-line);
+  background: var(--teal-panel);
+}
+
+.inspector {
+  flex: none;
+  min-inline-size: 0;
+  padding: var(--s4);
+  border: 1px solid var(--line-soft);
+  border-block-start-color: var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: inset 0 1px var(--rim);
+}
+
+.inspector-file,
+.inspector-idle {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.inspector-file h3,
+.inspector-idle h3 {
+  flex: 1;
+  color: var(--text);
+  font-size: var(--f4);
+}
+
+.inspector-emblem,
+.dialog-emblem {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--s6);
+  block-size: var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--raised);
+  color: var(--teal);
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--s2) var(--s3);
+  margin-block-start: var(--s3);
+}
+
+.detail {
+  display: grid;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.detail dt,
+.field {
+  color: var(--muted);
+  font-size: var(--f1);
+  white-space: nowrap;
+}
+
+.detail dd {
+  color: var(--text);
+  font: var(--f1)/1.4 var(--font-mono);
+}
+
+.composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  margin-block-start: var(--s3);
+}
+
+.field {
+  display: grid;
+  gap: var(--s1);
+}
+
+.field select {
+  min-block-size: var(--control);
+  min-inline-size: 120px;
+  padding-inline: var(--s2);
+  border: 1px solid var(--line);
+  border-block-start-color: var(--line-strong);
+  border-radius: var(--radius-small);
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--f2);
+}
+
+.field select:disabled {
+  color: var(--quiet);
+  background: var(--input);
+}
+
+.action-dock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-start: var(--s3);
+}
+
+.action-dock .button {
+  padding-inline: var(--s2);
+}
+
+.action-dock .reveal-button {
+  padding: 0;
+}
+
+.dock-note {
+  margin-block-start: var(--s3);
+  color: var(--muted);
+  font-size: var(--f1);
+}

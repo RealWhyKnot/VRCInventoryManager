@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>VRCInventoryManager</title>
+    <link rel="stylesheet" href="./app.css" />
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <header class="studio-bar">
+      <div class="studio-brand">
+        <span class="brand-mark" id="brand-mark"></span>
+        <h1>VRCInventoryManager</h1>
+      </div>
+      <div id="connection" class="connection"></div>
+      <div class="studio-tools">
+        <div id="quotas" class="quotas" aria-label="VRChat upload quotas"></div>
+        <div id="studio-actions" class="control-row"></div>
+      </div>
+      <div id="progress" class="progress" hidden></div>
+    </header>
+    <main class="workbench">
+      <section class="pane local-pane" id="local-pane" aria-labelledby="local-title">
+        <header class="pane-head">
+          <div class="pane-title">
+            <span class="pane-icon" id="local-icon"></span>
+            <h2 id="local-title">Local assets</h2>
+          </div>
+          <div id="local-tools" class="local-tools control-row"></div>
+        </header>
+        <div class="local-controls">
+          <div id="sources" class="segmented sources" role="group" aria-label="Local source"></div>
+          <div class="search-row">
+            <div class="search-box">
+              <span id="search-icon" class="search-icon"></span>
+              <input id="asset-search" type="search" placeholder="Search files" aria-label="Search files" maxlength="160" spellcheck="false" />
+              <span id="clear-search"></span>
+            </div>
+            <label class="switch-label" title="Include nested folders">
+              <input id="subfolders" type="checkbox" role="switch" />
+              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+              <span>Subfolders</span>
+            </label>
+          </div>
+        </div>
+        <div class="pane-scroll local-scroll" id="local-scroll">
+          <div id="folders" class="folders"></div>
+          <div class="collection" id="local-collection"></div>
+        </div>
+        <footer id="local-footer" class="pane-footer"></footer>
+        <div id="drop-zone" class="drop-zone" hidden></div>
+      </section>
+
+      <section class="pane stage-pane" aria-labelledby="stage-title">
+        <header class="pane-head">
+          <div class="pane-title">
+            <span class="pane-icon" id="stage-icon"></span>
+            <h2 id="stage-title">Light table</h2>
+          </div>
+          <div id="backdrops" class="segmented backdrops" role="group" aria-label="Preview backdrop"></div>
+        </header>
+        <div class="pane-scroll stage-scroll">
+          <div class="viewer">
+            <div id="platen" class="platen" data-backdrop="checker">
+              <div class="registration registration-tl"></div>
+              <div class="registration registration-tr"></div>
+              <div class="registration registration-bl"></div>
+              <div class="registration registration-br"></div>
+              <div id="preview" class="preview"></div>
+              <div id="viewer-caption" class="viewer-caption"></div>
+            </div>
+            <div id="transport" class="transport"></div>
+          </div>
+          <div id="inspector" class="inspector"></div>
+        </div>
+      </section>
+
+      <section class="pane remote-pane" aria-labelledby="remote-title">
+        <header class="pane-head">
+          <div class="pane-title">
+            <span class="pane-icon" id="remote-icon"></span>
+            <h2 id="remote-title">VRChat inventory</h2>
+          </div>
+          <div id="remote-tools" class="control-row"></div>
+        </header>
+        <div class="remote-controls">
+          <div id="remote-filters" class="segmented remote-filters" role="group" aria-label="Inventory filter"></div>
+        </div>
+        <div class="pane-scroll remote-scroll" id="remote-scroll">
+          <div class="collection" id="remote-collection"></div>
+        </div>
+        <footer id="remote-footer" class="pane-footer"></footer>
+      </section>
+    </main>
+    <div id="toasts" class="toast-stack" aria-label="Notifications" aria-live="polite"></div>
+    <dialog id="settings-dialog" aria-labelledby="settings-title"></dialog>
+    <dialog id="delete-dialog" aria-labelledby="delete-title"></dialog>
+    <dialog id="update-dialog" aria-labelledby="update-title"></dialog>
+  </body>
+</html>

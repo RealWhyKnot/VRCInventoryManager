@@ -3,11 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Tag to release, for example v2026.9.8.0 or v2026.9.8.0-beta'
+        description: "Tag to release, for example v2026.9.8.0 or v2026.9.8.0-beta"
         required: true
 
 permissions:
@@ -28,7 +28,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0
@@ -48,10 +48,16 @@ jobs:
           sha: ${{ steps.release_tag.outputs.sha }}
           workflow: ci.yml
 
-      - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          global-json-file: global.json
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Set up Rust
+        uses: RealWhyKnot/workflows/setup-rust@v1
+        with:
+          cache: "false"
 
       - name: Validate workflow scripts
         shell: pwsh
@@ -63,13 +69,13 @@ jobs:
       - name: Validate release version sequence
         uses: RealWhyKnot/workflows/version-sequence@v1
         with:
-          tag: '${{ steps.release_tag.outputs.tag }}'
-          prerelease-suffix: '[A-Za-z0-9][A-Za-z0-9.-]*'
+          tag: "${{ steps.release_tag.outputs.tag }}"
+          prerelease-suffix: "[A-Za-z0-9][A-Za-z0-9.-]*"
 
       - name: Install NSIS
         uses: RealWhyKnot/workflows/setup-nsis@v1
         with:
-          version: '3.12'
+          version: "3.12"
 
       - name: Promote Unreleased -> tagged section
         shell: pwsh
@@ -88,41 +94,24 @@ jobs:
           $version = $env:RELEASE_TAG -replace '^v', ''
           ./build.ps1 -Version $version -Release -RequireInstaller
 
-      - name: Write integrity manifest
+      - name: Locate release assets
         id: assets
         shell: pwsh
         env:
           RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
         run: |
-          $tag = $env:RELEASE_TAG
-          $zip = Get-ChildItem release -File -Filter '*.zip' | Select-Object -First 1
-          $setup = Get-ChildItem release -File -Filter '*Setup.exe' | Select-Object -First 1
-          if (-not $zip -or -not $setup) {
-            throw "Expected both zip and Setup.exe release assets."
+          $prefix = "VRCInventoryManager-$env:RELEASE_TAG"
+          $zipName = "$prefix-win-x64.zip"
+          $setupName = "$prefix-Setup.exe"
+          $integrityName = "$prefix.integrity.tsv"
+          foreach ($name in @($zipName, $setupName, $integrityName, "$zipName.sha256", "$setupName.sha256")) {
+            if (-not (Test-Path -LiteralPath "release/$name" -PathType Leaf)) {
+              throw "Missing release asset $name."
+            }
           }
-
-          $integrityName = "VRCInventoryManager-$tag.integrity.tsv"
-          $integrityPath = Join-Path "release" $integrityName
-          "name`tsha256`tbytes" | Set-Content -LiteralPath $integrityPath -Encoding utf8
-          foreach ($asset in @($zip, $setup)) {
-            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant()
-            "$($asset.Name)`t$hash`t$($asset.Length)" | Add-Content -LiteralPath $integrityPath -Encoding utf8
-          }
-
-          "zip_name=$($zip.Name)" >> $env:GITHUB_OUTPUT
-          "setup_name=$($setup.Name)" >> $env:GITHUB_OUTPUT
+          "zip_name=$zipName" >> $env:GITHUB_OUTPUT
+          "setup_name=$setupName" >> $env:GITHUB_OUTPUT
           "integrity_name=$integrityName" >> $env:GITHUB_OUTPUT
-          "integrity_path=$integrityPath" >> $env:GITHUB_OUTPUT
-
-      - name: Checksums
-        id: checksums
-        uses: RealWhyKnot/workflows/checksums@v1
-        with:
-          archives: |
-            release/${{ steps.assets.outputs.zip_name }}
-            release/${{ steps.assets.outputs.setup_name }}
-          manifest: "false"
-          sidecar: "true"
 
       - name: Write release notes
         shell: pwsh
@@ -149,12 +138,13 @@ jobs:
           tag: ${{ steps.release_tag.outputs.tag }}
           notes-file: release/notes.md
           prerelease: ${{ steps.release_tag.outputs.prerelease }}
-          draft-first: 'true'
+          draft-first: "true"
           assets: |
             release/${{ steps.assets.outputs.zip_name }}
             release/${{ steps.assets.outputs.setup_name }}
-            ${{ steps.assets.outputs.integrity_path }}
-            ${{ steps.checksums.outputs.sidecars }}
+            release/${{ steps.assets.outputs.integrity_name }}
+            release/${{ steps.assets.outputs.zip_name }}.sha256
+            release/${{ steps.assets.outputs.setup_name }}.sha256
 
       - name: Restore the promoted changelog
         if: ${{ steps.release_tag.outputs.prerelease != 'true' }}
@@ -166,7 +156,7 @@ jobs:
         continue-on-error: true
         uses: RealWhyKnot/workflows/commit-on-branch@v1
         with:
-          headline: 'docs(changelog): promote Unreleased to ${{ steps.release_tag.outputs.tag }} [skip changelog]'
-          body: 'Promoted after publishing ${{ steps.release_tag.outputs.tag }}.'
+          headline: "docs(changelog): promote Unreleased to ${{ steps.release_tag.outputs.tag }} [skip changelog]"
+          body: "Promoted after publishing ${{ steps.release_tag.outputs.tag }}."
           paths: |
             CHANGELOG.md

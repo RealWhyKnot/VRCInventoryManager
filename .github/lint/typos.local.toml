@@ -1,0 +1,3 @@
+[default.extend-identifiers]
+from_numer_denom_ms = "from_numer_denom_ms"
+numer_denom_ms = "numer_denom_ms"

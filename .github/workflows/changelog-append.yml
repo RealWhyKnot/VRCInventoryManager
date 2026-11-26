@@ -4,15 +4,15 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - 'CHANGELOG.md'
-      - '.gitignore'
-      - '.gitattributes'
+      - "CHANGELOG.md"
+      - ".gitignore"
+      - ".gitattributes"
   workflow_dispatch:
     inputs:
       range:
-        description: 'Override commit range, for example abc123..def456.'
+        description: "Override commit range, for example abc123..def456."
         required: false
-        default: ''
+        default: ""
 
 permissions:
   contents: write

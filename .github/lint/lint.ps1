@@ -7,16 +7,32 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 Set-Location -LiteralPath (Join-Path -Path $PSScriptRoot -ChildPath '../..')
-dotnet restore VRCInventoryManager.slnx --locked-mode
+npm.cmd run build
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-dotnet format VRCInventoryManager.slnx --verify-no-changes --no-restore
+npm.cmd run typecheck
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-dotnet build VRCInventoryManager.slnx -c Release --no-restore
+npm.cmd run lint
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-dotnet test VRCInventoryManager.slnx -c Release --no-build
+cargo fmt --check
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-dotnet run .github/lint/CSharpStyle.cs -- .
+cargo clippy --workspace --all-targets --locked -- -D warnings
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+cargo test --workspace --all-targets --locked
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$rustFiles = @(git ls-files -- '*.rs')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$awk = Get-Command -Name awk -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $awk) {
+    $gitFolder = Split-Path -Path (Split-Path -Path (Get-Command -Name git -CommandType Application).Source)
+    $awk = Get-Command -Name (Join-Path -Path $gitFolder -ChildPath 'usr/bin/awk.exe')
+}
+& $awk -f .github/lint/rust-style.awk @rustFiles
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$wideLines = @(Select-String -LiteralPath $rustFiles -Pattern '^.{101}' -Encoding utf8)
+foreach ($wideLine in $wideLines) {
+    Write-Host "$($wideLine.RelativePath($PWD.Path)):$($wideLine.LineNumber): wrap this line to 100 characters."
+}
+if ($wideLines.Count -gt 0) { exit 1 }
 python -B .github/lint/style_check.py
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path -Path $PSScriptRoot -ChildPath 'Invoke-PSLint.ps1')

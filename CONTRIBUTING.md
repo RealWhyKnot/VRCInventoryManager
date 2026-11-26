@@ -10,7 +10,7 @@ Link the issue where we settled the approach in the PR description.
 
 ### Setting up
 
-You need the .NET SDK version in `global.json` on 64-bit Windows, plus PowerShell 7 and Git. Turn on the repository's hooks after cloning:
+Set up Rust, Node.js and Pageframe using the [build instructions](README.md#build-from-source). Turn on the repository's hooks after cloning.
 
 ```powershell
 git config core.hooksPath .githooks
@@ -19,7 +19,7 @@ git config core.hooksPath .githooks
 
 ### Checks
 
-Run `./.github/lint/lint.ps1`. It is the same gate CI runs, and it includes `dotnet test VRCInventoryManager.slnx`.
+Run `npm ci` first, then `./.github/lint/lint.ps1` to build the frontend and run the Rust tests and frontend, Rust and PowerShell lints. The pre-push hook also checks shell style, Rust style, workflows and dependencies. Those checks need Git Bash, ShellCheck, shfmt, actionlint, zizmor, typos, Gitleaks and cargo-deny on PATH. The PowerShell linter needs PSScriptAnalyzer and the common style check uses Python.
 
 ### Commits
 

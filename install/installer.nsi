@@ -20,8 +20,8 @@ RequestExecutionLevel user
 ShowInstDetails show
 CRCCheck force
 SetOverwrite on
-Icon "..\src\VRCInventoryManager\Assets\AppIcon.ico"
-UninstallIcon "..\src\VRCInventoryManager\Assets\AppIcon.ico"
+Icon "..\assets\AppIcon.ico"
+UninstallIcon "..\assets\AppIcon.ico"
 
 VIProductVersion "${NUMERIC_VERSION}"
 VIAddVersionKey /LANG=1033 "ProductName" "VRCInventoryManager"
@@ -67,6 +67,7 @@ Section "Uninstall"
     Delete "$INSTDIR\VRCInventoryManager.exe"
     Delete "$INSTDIR\VRCInventoryManager.exe.old"
     Delete "$INSTDIR\VRCInventoryManager.debug.log"
+    Delete "$INSTDIR\VRCInventoryManager.debug.log.1"
     Delete "$INSTDIR\LICENSE"
     Delete "$INSTDIR\Uninstall.exe"
     RMDir "$INSTDIR"

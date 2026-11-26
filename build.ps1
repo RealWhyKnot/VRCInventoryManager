@@ -24,50 +24,36 @@ function Get-NumericVersion {
     [OutputType([string])]
     param([Parameter(Mandatory = $true)][string] $BuildVersion)
     $base = ($BuildVersion -replace '-.*$', '')
-    $parts = [System.Collections.Generic.List[int]]::new()
     foreach ($part in $base.Split('.')) {
-        $value = 0
-        if ([int]::TryParse($part, [ref]$value)) {
-            $parts.Add($value)
-        } else {
-            $parts.Add(0)
+        $value = [uint16]0
+        if (-not [uint16]::TryParse($part, [ref]$value)) {
+            throw "Version component $part is out of range."
         }
     }
-    while ($parts.Count -lt 4) { $parts.Add(0) }
-    return ($parts[0..3] -join '.')
+    return $base
 }
 
 function Write-IntegrityManifest {
     [CmdletBinding()]
     [OutputType([void])]
     param(
-        [Parameter(Mandatory = $true)][string] $ReleaseDir,
-        [Parameter(Mandatory = $true)][string] $BuildVersion
+        [Parameter(Mandatory)][string] $ManifestPath,
+        [Parameter(Mandatory)][string[]] $AssetPaths
     )
 
-    $manifestPath = Join-Path $ReleaseDir "VRCInventoryManager-v$BuildVersion.integrity.tsv"
-    $assets = @(Get-ChildItem -LiteralPath $ReleaseDir -File | Where-Object {
-            $_.Name -like '*.zip' -or $_.Name -like '*Setup.exe'
-        } | Sort-Object Name)
-
-    if ($assets.Count -eq 0) {
-        return
+    $rows = [System.Collections.Generic.List[string]]::new()
+    $rows.Add("name`tsha256`tbytes")
+    foreach ($path in $AssetPaths) {
+        $asset = Get-Item -LiteralPath $path
+        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant()
+        $rows.Add("$($asset.Name)`t$hash`t$($asset.Length)")
+        Write-Utf8NoBom -Path "$path.sha256" -Content "$hash  $($asset.Name)`n"
     }
-
-    [IO.File]::WriteAllText($manifestPath, "name`tsha256`tbytes" + [Environment]::NewLine)
-    foreach ($asset in $assets) {
-        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset.FullName).Hash.ToLowerInvariant()
-        [IO.File]::AppendAllText($manifestPath, "$($asset.Name)`t$hash`t$($asset.Length)" + [Environment]::NewLine)
-    }
-    Write-Host "Integrity:   $manifestPath"
+    Write-Utf8NoBom -Path $ManifestPath -Content (($rows -join "`n") + "`n")
+    Write-Host "Integrity manifest $ManifestPath"
 }
+
 Set-Location -LiteralPath $PSScriptRoot
-
-
-
-
-
-
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $today = Get-Date -Format 'yyyy.M.d'
@@ -86,85 +72,85 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     Write-Utf8NoBom -Path $statePath -Content (@{ date = $today; counter = $counter } | ConvertTo-Json -Depth 2)
 }
 
+if ($Version -notmatch '^\d{4}\.\d+\.\d+\.\d+(-[A-Za-z0-9][A-Za-z0-9.-]*)?$') {
+    throw 'Use a version such as 2026.11.26.0 or 2026.11.26.0-beta.'
+}
+
 $numericVersion = Get-NumericVersion -BuildVersion $Version
-Write-Utf8NoBom -Path (Join-Path -Path $PSScriptRoot -ChildPath 'version.txt') -Content $Version
-Write-Host "Build version: $Version"
+Write-Utf8NoBom -Path (Join-Path $PSScriptRoot 'version.txt') -Content $Version
+Write-Host "Building VRCInventoryManager $Version"
 
-dotnet restore VRCInventoryManager.slnx
-if ($LASTEXITCODE -ne 0) { throw 'dotnet restore failed' }
+npm.cmd ci --no-audit --no-fund
+if ($LASTEXITCODE -ne 0) { throw 'npm ci failed.' }
+npm.cmd run build
+if ($LASTEXITCODE -ne 0) { throw 'The frontend build failed.' }
 
-$buildArguments = @(
-    'build', 'VRCInventoryManager.slnx', '--configuration', 'Release', '--no-restore',
-    "-p:Version=$numericVersion", "-p:InformationalVersion=$Version"
-)
-dotnet @buildArguments
-if ($LASTEXITCODE -ne 0) { throw 'dotnet build failed' }
+$target = 'x86_64-pc-windows-msvc'
+cargo build --release --locked --target $target
+if ($LASTEXITCODE -ne 0) { throw 'The Rust release build failed.' }
 
 if (-not $Release) {
-    dotnet test VRCInventoryManager.slnx --configuration Release --no-build
-    if ($LASTEXITCODE -ne 0) { throw 'test harness failed' }
+    cargo test --workspace --all-targets --locked
+    if ($LASTEXITCODE -ne 0) { throw 'The Rust tests failed.' }
+    exit 0
 }
 
-if ($Release) {
-    $releaseDir = Join-Path $PSScriptRoot 'release'
-    $appDir = Join-Path $releaseDir 'app'
-    if (Test-Path -LiteralPath $releaseDir) {
-        Remove-Item -LiteralPath $releaseDir -Recurse -Force
+$metadata = cargo metadata --no-deps --locked --format-version 1
+if ($LASTEXITCODE -ne 0) { throw 'Could not locate the Cargo build output.' }
+$targetDirectory = ($metadata | ConvertFrom-Json).target_directory
+$binary = Join-Path $targetDirectory "$target/release/VRCInventoryManager.exe"
+$licensePath = Join-Path $PSScriptRoot 'LICENSE'
+$releaseDir = Join-Path $PSScriptRoot 'release'
+$appDir = Join-Path $releaseDir 'app'
+$null = New-Item -ItemType Directory -Force -Path $appDir
+$publishedExe = Join-Path $appDir 'VRCInventoryManager.exe'
+$publishedLicense = Join-Path $appDir 'LICENSE'
+Copy-Item -LiteralPath $binary -Destination $publishedExe -Force
+Copy-Item -LiteralPath $licensePath -Destination $publishedLicense -Force
+
+$base = Join-Path $releaseDir "VRCInventoryManager-v$Version"
+$zipPath = "$base-win-x64.zip"
+$setupPath = "$base-Setup.exe"
+$manifestPath = "$base.integrity.tsv"
+$oldPaths = @($zipPath, $setupPath, $manifestPath, "$zipPath.sha256", "$setupPath.sha256")
+foreach ($path in $oldPaths) {
+    if (Test-Path -LiteralPath $path) {
+        Remove-Item -LiteralPath $path -Force
     }
-    $null = New-Item -ItemType Directory -Force -Path $appDir
+}
 
-    $publishArguments = @(
-        'publish', 'src/VRCInventoryManager/VRCInventoryManager.csproj',
-        '--configuration', 'Release', '--runtime', 'win-x64', '--self-contained', 'true', '--output', $appDir,
-        '-p:PublishSingleFile=true', '-p:EnableCompressionInSingleFile=true',
-        '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishReadyToRun=false',
-        '-p:DebugType=None', '-p:DebugSymbols=false', "-p:Version=$numericVersion", "-p:InformationalVersion=$Version"
-    )
-    dotnet @publishArguments
-    if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
+Compress-Archive -LiteralPath $publishedExe, $publishedLicense -DestinationPath $zipPath -CompressionLevel Optimal
+Write-Host "Portable archive $zipPath"
 
-    $publishedFiles = @(Get-ChildItem -LiteralPath $appDir -File)
-    if ($publishedFiles.Count -ne 1 -or $publishedFiles[0].Name -ne 'VRCInventoryManager.exe') {
-        throw 'Release publish should produce exactly one executable file.'
-    }
-
-    $licensePath = Join-Path $PSScriptRoot 'LICENSE'
-    if (-not (Test-Path -LiteralPath $licensePath)) {
-        throw 'LICENSE is required for release packaging.'
-    }
-    Copy-Item -LiteralPath $licensePath -Destination $appDir -Force
-
-    $zipPath = Join-Path $releaseDir "VRCInventoryManager-v$Version-win-x64.zip"
-    if (Test-Path -LiteralPath $zipPath) {
-        Remove-Item -LiteralPath $zipPath -Force
-    }
-    Compress-Archive -Path (Join-Path $appDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
-    $zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $zipPath).Hash.ToLowerInvariant()
-    $exeSizeMb = [Math]::Round($publishedFiles[0].Length / 1MB, 2)
-    Write-Host "Release exe: $($publishedFiles[0].FullName) ($exeSizeMb MB)"
-    Write-Host "Release zip: $zipPath"
-    Write-Host "SHA256:      $zipHash"
-
-    $makensis = Join-Path -Path ${env:ProgramFiles(x86)} -ChildPath 'NSIS/makensis.exe'
-    if (-not (Test-Path -LiteralPath $makensis)) {
-        $makensis = Join-Path -Path $env:ProgramFiles -ChildPath 'NSIS/makensis.exe'
-    }
-
-    if (Test-Path -LiteralPath $makensis) {
-        Push-Location install
-        try {
-            & $makensis "/DVERSION=$Version" "/DNUMERIC_VERSION=$numericVersion" installer.nsi
-            if ($LASTEXITCODE -ne 0) { throw "makensis failed with exit $LASTEXITCODE" }
-        } finally {
-            Pop-Location
+$makensis = Get-Command makensis.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+$makensisPath = if ($makensis) { $makensis.Source } else {
+    foreach ($folder in @(${env:ProgramFiles(x86)}, $env:ProgramFiles)) {
+        if (-not $folder) { continue }
+        $candidate = Join-Path $folder 'NSIS/makensis.exe'
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $candidate
+            break
         }
-    } elseif ($RequireInstaller) {
-        throw 'makensis.exe was not found. Install NSIS or let CI install it.'
-    } else {
-        Write-Host 'NSIS not found; installer build skipped.'
     }
-
-    Write-IntegrityManifest -ReleaseDir $releaseDir -BuildVersion $Version
 }
 
+$assets = [System.Collections.Generic.List[string]]::new()
+$assets.Add($zipPath)
+if ($makensisPath) {
+    Push-Location -LiteralPath (Join-Path $PSScriptRoot 'install')
+    try {
+        & $makensisPath "/DVERSION=$Version" "/DNUMERIC_VERSION=$numericVersion" installer.nsi
+        if ($LASTEXITCODE -ne 0) { throw "NSIS failed with exit code $LASTEXITCODE." }
+        if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) { throw 'NSIS did not produce the installer.' }
+        $assets.Add($setupPath)
+    } finally {
+        Pop-Location
+    }
+} elseif ($RequireInstaller) {
+    throw 'Install NSIS to build the installer.'
+} else {
+    Write-Host 'Install NSIS to include an installer.'
+}
+
+Write-IntegrityManifest -ManifestPath $manifestPath -AssetPaths $assets
 exit 0

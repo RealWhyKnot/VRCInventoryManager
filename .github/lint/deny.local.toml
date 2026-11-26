@@ -1,0 +1,5 @@
+[sources.allow-org]
+github = ["DioxusLabs", "RealWhyKnot"]
+
+[[graph.targets]]
+triple = "x86_64-pc-windows-msvc"

@@ -1,0 +1,461 @@
+.empty-state {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: var(--s2);
+  padding: var(--s4) 0;
+  text-align: center;
+}
+
+.empty-state h3 {
+  color: var(--text);
+  font-size: var(--f4);
+  white-space: nowrap;
+}
+
+.empty-state p {
+  max-inline-size: 100%;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.empty-state .control-row {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.illustration {
+  display: block;
+  inline-size: 112px;
+  block-size: 94px;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.illustration-guides {
+  stroke: var(--stage-guides);
+}
+
+.illustration-shadow {
+  fill: var(--well);
+  stroke: var(--line);
+}
+
+.illustration-base {
+  fill: var(--raised);
+  stroke: var(--line-strong);
+}
+
+.illustration-top {
+  fill: var(--active);
+  stroke: var(--line-strong);
+}
+
+.illustration-key {
+  stroke: var(--teal);
+}
+
+.stage-empty {
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: var(--s2);
+  min-inline-size: 184px;
+  padding: var(--s2) var(--s5) var(--s4);
+  border: 1px solid var(--line);
+  border-block-start-color: var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--well);
+  box-shadow: 0 8px 20px var(--shade);
+}
+
+.stage-empty .empty-state {
+  padding: 0;
+  justify-items: start;
+  inline-size: 100%;
+}
+
+.stage-empty .illustration {
+  justify-self: start;
+  inline-size: clamp(124px, 10vw, 184px);
+  block-size: clamp(104px, 8.4vw, 154px);
+}
+
+.keyboard-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  color: var(--muted);
+  font-size: var(--f1);
+  white-space: nowrap;
+}
+
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: var(--s5);
+  min-block-size: var(--s5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+  background: var(--raised);
+  color: var(--text);
+  font: var(--f2)/1 var(--font-mono);
+}
+
+.keyboard-hint kbd + kbd {
+  margin-inline-end: var(--s1);
+}
+
+.loading-state {
+  display: grid;
+  gap: var(--s3);
+  padding-block-start: var(--s2);
+}
+
+.loading-label {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--muted);
+}
+
+.loading-label .icon {
+  color: var(--teal);
+}
+
+.remote-scroll .loading-label {
+  gap: calc(var(--s2) + 2px);
+}
+
+.loading-block {
+  display: block;
+  min-inline-size: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.loading-grid .loading-block {
+  aspect-ratio: 1;
+}
+
+.loading-list .loading-block {
+  min-block-size: 58px;
+}
+
+.drop-zone {
+  position: absolute;
+  z-index: var(--layer-drop);
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  border-radius: var(--radius);
+  background: var(--drop-scrim);
+  pointer-events: none;
+}
+
+.local-pane:has(.drop-zone:not([hidden])) > :not(.drop-zone) {
+  visibility: hidden;
+}
+
+.drop-target {
+  display: grid;
+  place-items: center;
+  gap: var(--s3);
+  inline-size: 100%;
+  padding: var(--s6) var(--s4);
+  border: 1px dashed var(--teal);
+  border-radius: var(--radius);
+  color: var(--teal);
+}
+
+.drop-target .icon {
+  inline-size: var(--s6);
+  block-size: var(--s6);
+}
+
+dialog {
+  position: fixed;
+  z-index: var(--layer-dialog);
+  inset: 50% auto auto 50%;
+  inline-size: min(488px, calc(100% - 48px));
+  max-block-size: calc(100% - 48px);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-large);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow:
+    0 var(--s4) var(--s7) var(--floating-shadow),
+    inset 0 1px var(--rim);
+  transform: translate(-50%, -50%);
+}
+
+dialog[open] {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: transparent;
+}
+
+body:has(dialog[open])::before {
+  position: fixed;
+  z-index: var(--layer-scrim);
+  inset: 0;
+  background: var(--scrim);
+  content: "";
+  pointer-events: none;
+}
+
+body:has(dialog[open]) .stage-scroll {
+  visibility: hidden;
+}
+
+.dialog-head,
+.dialog-body,
+.dialog-actions {
+  padding: var(--s4);
+}
+
+.dialog-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  border-block-end: 1px solid var(--line-soft);
+}
+
+.dialog-head h1 {
+  flex: 1;
+  font-size: var(--f5);
+  white-space: nowrap;
+}
+
+.dialog-body {
+  display: grid;
+  gap: var(--s3);
+}
+
+.dialog-body p {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.dialog-body .dialog-error {
+  color: var(--coral-text);
+}
+
+.dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s2);
+  border-block-start: 1px solid var(--line-soft);
+}
+
+.settings-details {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s4);
+}
+
+.settings-details .detail:first-child {
+  grid-column: 1 / -1;
+}
+
+.settings-preference {
+  font-size: var(--f2);
+  color: var(--text);
+}
+
+.delete-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.dialog-thumbnail {
+  inline-size: var(--s7);
+  block-size: var(--s7);
+}
+
+.delete-name {
+  display: grid;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.delete-name strong {
+  font-weight: var(--semibold);
+}
+
+.delete-name > span {
+  color: var(--muted);
+  font-size: var(--f1);
+}
+
+.update-release {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.update-release .button {
+  margin-inline-start: auto;
+}
+
+.toast-stack {
+  position: fixed;
+  z-index: var(--layer-toast);
+  inset: auto var(--s4) var(--s4) auto;
+  display: grid;
+  gap: var(--s2);
+  inline-size: 344px;
+  max-inline-size: calc(100% - 32px);
+}
+
+.toast {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s2) var(--s2) var(--s3);
+  border: 1px solid var(--line-strong);
+  border-inline-start: 2px solid var(--teal);
+  border-radius: var(--radius);
+  background: var(--active);
+  box-shadow: 0 var(--s2) var(--s5) var(--floating-shadow);
+  overflow-wrap: anywhere;
+}
+
+.toast > .icon {
+  color: var(--teal);
+}
+
+.toast-error {
+  border-inline-start-color: var(--coral);
+}
+
+.toast-error > .icon {
+  color: var(--coral-text);
+}
+
+@media (hover: hover) {
+  .button:hover:not(:disabled, [aria-disabled="true"]) {
+    background: var(--active);
+    border-color: var(--line-strong);
+  }
+
+  .primary-button:hover:not(:disabled, [aria-disabled="true"]) {
+    background: var(--teal-hover);
+    border-color: var(--teal-hover);
+  }
+
+  .danger-button:hover:not(:disabled),
+  .remote-delete:hover:not(:disabled) {
+    background: var(--coral-panel);
+    border-color: var(--coral);
+  }
+
+  .danger-primary:hover:not(:disabled, [aria-disabled="true"]) {
+    background: var(--coral-text);
+    border-color: var(--coral-text);
+  }
+
+  .asset-card:hover,
+  .remote-card:hover {
+    background: var(--active);
+    border-color: var(--line-strong);
+  }
+
+  .asset-card[aria-pressed="true"]:hover,
+  .remote-selected:hover {
+    background: var(--teal-panel);
+    border-color: var(--teal);
+  }
+
+  .switch-label:hover :where(input:not(:disabled, [aria-disabled="true"])) + .switch-track {
+    border-color: var(--teal);
+  }
+}
+
+@media (width <= 1120px) {
+  :root {
+    --pane-padding: var(--s3);
+  }
+
+  .pane-head,
+  .local-controls,
+  .remote-controls,
+  .pane-footer,
+  .local-scroll,
+  .remote-scroll,
+  .stage-scroll {
+    padding-inline: var(--s3);
+  }
+
+  .compact-action .button-label {
+    display: none;
+  }
+
+  .compact-action {
+    inline-size: var(--control);
+    padding: 0;
+  }
+
+  .asset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sources .button {
+    padding-inline: var(--s1);
+  }
+
+  .search-row .switch-label {
+    margin-inline-start: var(--s3);
+  }
+
+  .backdrops .button {
+    min-inline-size: var(--control);
+    padding-inline: var(--s1);
+  }
+
+  .backdrops .button .button-label {
+    display: none;
+  }
+
+  .local-tools {
+    gap: var(--s2);
+  }
+
+  .viewer {
+    flex-basis: 212px;
+  }
+
+  .action-dock .upload-action .icon {
+    display: none;
+  }
+}
+
+@media (width >= 1660px) {
+  .asset-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress:not([aria-valuenow])::after {
+    animation: none;
+    inline-size: 100%;
+  }
+}

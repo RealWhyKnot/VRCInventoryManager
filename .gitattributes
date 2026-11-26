@@ -5,7 +5,6 @@
 *.psm1 text eol=crlf
 *.psd1 text eol=crlf
 .github/lint/** text eol=lf
-.github/lint/CSharpStyle.cs text eol=crlf
 .editorconfig text eol=lf
 .shellcheckrc text eol=lf
 Directory.Build.props text eol=lf

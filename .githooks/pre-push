@@ -4,8 +4,11 @@ shopt -s inherit_errexit
 
 root=$(git rev-parse --show-toplevel)
 cd "${root}"
-timeout 600 pwsh -NoProfile -File .github/lint/lint.ps1
+if [[ ! -d node_modules ]]; then
+  npm ci --no-audit --no-fund
+fi
+pwsh -NoProfile -File .github/lint/lint.ps1
+git ls-files -z -- '*.rs' | xargs -0 -r awk -f .github/lint/rust-style.awk
+cargo deny --locked --workspace --config .github/lint/deny.toml check
 bash .github/lint/repo_checks.sh
 bash .github/lint/check-shell
-python -B .github/lint/style_check.py
-actionlint -color

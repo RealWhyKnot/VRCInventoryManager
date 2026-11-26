@@ -2,7 +2,7 @@ name: Nightly beta
 
 on:
   schedule:
-    - cron: '45 5 * * *'
+    - cron: "45 5 * * *"
   workflow_dispatch:
 
 permissions:

@@ -4,25 +4,26 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.gitattributes'
-      - '.github/release-template/**'
-      - '.github/release-extras/**'
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
+      - ".gitattributes"
+      - ".github/release-template/**"
+      - ".github/release-extras/**"
   pull_request:
     branches: [main]
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.gitattributes'
-      - '.github/release-template/**'
-      - '.github/release-extras/**'
+      - "**.md"
+      - "LICENSE"
+      - ".gitignore"
+      - ".gitattributes"
+      - ".github/release-template/**"
+      - ".github/release-extras/**"
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -35,91 +36,88 @@ jobs:
       contents: read
     uses: RealWhyKnot/workflows/.github/workflows/repo-checks.yml@v1
 
-  shell:
-    name: shell checks
+  native-style:
+    name: Rust and shell style
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
+      - name: Set up Rust
+        uses: RealWhyKnot/workflows/setup-rust@v1
+        with:
+          cache: "false"
 
       - name: Set up shell tools
         uses: RealWhyKnot/workflows/setup-shell-tools@v1
-        with:
-          actionlint: "1.7.12"
 
-      - name: Run shell gate
-        shell: bash
-        run: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          shopt -s inherit_errexit
-          bash .github/lint/check-shell
+      - name: Set up lint tools
+        uses: RealWhyKnot/workflows/setup-lint-tools@v1
+
+      - name: Shell style
+        run: bash .github/lint/check-shell
+
+      - name: Rust style
+        run: git ls-files -z -- '*.rs' | xargs -0 -r awk -f .github/lint/rust-style.awk
+
+      - name: Dependency policy
+        run: cargo deny --locked --workspace --config .github/lint/deny.toml check
 
   build:
-    name: build, tests, and publish smoke
+    name: Windows checks and release build
     runs-on: windows-2025-vs2026
-    timeout-minutes: 25
-
+    timeout-minutes: 60
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          fetch-depth: 0
 
-      - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
-          global-json-file: global.json
+          node-version: "24"
+          cache: npm
 
-      - name: Cache NuGet packages
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/packages.lock.json') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+      - name: Set up Rust
+        uses: RealWhyKnot/workflows/setup-rust@v1
 
       - name: Set up Python
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: Set up PSScriptAnalyzer
         uses: RealWhyKnot/workflows/setup-pssa@v1
 
-      - name: Run full gate
-        shell: bash
-        run: |
-          #!/usr/bin/env bash
-          set -euo pipefail
-          shopt -s inherit_errexit
-          timeout 900 pwsh -NoProfile -File .github/lint/lint.ps1
+      - name: Set up NSIS
+        uses: RealWhyKnot/workflows/setup-nsis@v1
+        with:
+          version: "3.12"
 
-      - name: Publish app
-        shell: pwsh
-        run: |
-          $publishArguments = @(
-              'publish', 'src/VRCInventoryManager/VRCInventoryManager.csproj',
-              '--configuration', 'Release', '--runtime', 'win-x64', '--self-contained', 'true', '--output', 'stage/app',
-              '-p:PublishSingleFile=true', '-p:EnableCompressionInSingleFile=true',
-              '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:PublishReadyToRun=false',
-              '-p:DebugType=None', '-p:DebugSymbols=false'
-          )
-          dotnet @publishArguments
-          if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit $LASTEXITCODE" }
-          $files = @(Get-ChildItem stage/app -File)
-          if ($files.Count -ne 1 -or $files[0].Name -ne 'VRCInventoryManager.exe') {
-              throw 'Publish output must contain exactly VRCInventoryManager.exe.'
-          }
+      - name: Install frontend dependencies
+        run: npm ci --no-audit --no-fund
 
-      - name: Upload app artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      - name: Lint and test
+        run: ./.github/lint/lint.ps1
+
+      - name: Build release packages
+        run: ./build.ps1 -Release -RequireInstaller
+
+      - name: Smoke-test the release executable
+        run: ./.github/scripts/Test-ReleaseBinary.ps1
+
+      - name: Upload release smoke artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: VRCInventoryManager-${{ github.sha }}
-          path: stage/app
+          path: |
+            release/*.zip
+            release/*Setup.exe
+            release/*.integrity.tsv
+            release/*.sha256
           if-no-files-found: error
           retention-days: 14
