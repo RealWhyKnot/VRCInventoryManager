@@ -62,7 +62,7 @@ num-traits = { version = "0.2.19", default-features = false, features = ["std"] 
 pageframe = { git = "https://github.com/RealWhyKnot/Pageframe.git", rev = "309fd5784a8dea9811b2b4d1c1eaa3a8ca3e8895", default-features = false, features = ["gpu", "svg"] }
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "json", "multipart", "query"] }
-rfd = { version = "0.17.1", default-features = false }
+rfd = { version = "0.18.0", default-features = false }
 rusqlite = { version = "0.42.0", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
