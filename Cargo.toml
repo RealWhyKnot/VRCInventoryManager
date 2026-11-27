@@ -51,7 +51,7 @@ print_stderr = "deny"
 [workspace.dependencies]
 anyhow = "1"
 axum = "0.8.9"
-base64 = "0.22"
+base64 = "0.23"
 gif = "0.14"
 hex = "0.4"
 image = { version = "0.25.6", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff"] }
