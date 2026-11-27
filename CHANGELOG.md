@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Rewrite app in Rust (cf2c107)
+
 ### Changed
 
 - **deps:** Update Meziantou.Analyzer to 3.0.341 (623636a)
