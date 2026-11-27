@@ -56,7 +56,7 @@ gif = "0.14"
 hex = "0.4"
 image = { version = "0.25.6", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff"] }
 jiff = "1.0.3"
-lru = { version = "0.18", default-features = false }
+lru = { version = "0.19", default-features = false }
 mime_guess = "2"
 num-traits = { version = "0.2.19", default-features = false, features = ["std"] }
 pageframe = { git = "https://github.com/RealWhyKnot/Pageframe.git", rev = "309fd5784a8dea9811b2b4d1c1eaa3a8ca3e8895", default-features = false, features = ["gpu", "svg"] }
